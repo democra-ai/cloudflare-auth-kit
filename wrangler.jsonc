@@ -6,6 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
+  // Custom build: wrangler runs this before `wrangler dev` AND `wrangler deploy`
+  // (and Workers Builds' default deploy command), so ./public is always populated —
+  // Studio shell copied from node_modules + the login page built by Vite.
+  // watch_dir replaces wrangler dev's own watcher when a custom build is set.
+  "build": { "command": "npm run build", "watch_dir": ["src", "login"] },
+
   // The Studio shell + the login page are served from here (built by `npm run build`).
   // html_handling:"none" is REQUIRED: the Studio adapter fetches "/index.html" from this
   // binding, and the default html_handling would 307-redirect it to "/" (which the adapter

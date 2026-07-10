@@ -62,7 +62,7 @@ export default {
       return withCors(await auth.handler(request), origin, trusted);
     }
 
-    // ── 1b. Public provider status (the login page enables the right buttons) ─
+    // ── 1b. Public provider status (the login page shows the right options) ──
     if (p === "/providers") {
       return new Response(
         JSON.stringify({
@@ -72,16 +72,18 @@ export default {
             github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
             microsoft: Boolean(env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET),
           },
-          callbackBase: `${env.AUTH_URL}/api/auth/callback`,
+          signup: env.ALLOW_SIGNUP === "true",
+          callbackBase: `${(env.AUTH_URL ?? "").trim() || url.origin}/api/auth/callback`,
         }),
         { headers: { "Content-Type": "application/json" } },
       );
     }
 
-    // ── 2. Hosted login page (PUBLIC) ────────────────────────────────────────
-    // The assets binding runs with html_handling:"none", so map /login → /login.html
-    // explicitly (the browser keeps its ?redirect_to=... query; login.html reads it client-side).
-    if (p === "/login" || p === "/login.html") {
+    // ── 2. Hosted login page (PUBLIC) — the better-auth-ui SPA ───────────────
+    // Built by Vite into /login.html; the URL path picks the view (/auth/sign-in,
+    // /auth/sign-up, /auth/forgot-password, ...). The assets binding runs with
+    // html_handling:"none", so we map every auth view to /login.html ourselves.
+    if (p === "/login" || p === "/login.html" || p === "/auth" || p.startsWith("/auth/")) {
       const u = new URL(request.url);
       u.pathname = "/login.html";
       return env.ASSETS.fetch(new Request(u.toString(), request));
@@ -98,8 +100,8 @@ export default {
       if (p.startsWith("/api/")) {
         return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
       }
-      const to = new URL("/login", url);
-      to.searchParams.set("redirect_to", p + url.search);
+      const to = new URL("/auth/sign-in", url);
+      to.searchParams.set("redirectTo", p + url.search);
       return Response.redirect(to.toString(), 302);
     }
 

@@ -5,7 +5,7 @@
 A self-hosted, Supabase-Auth-style stack you fully own:
 
 - 🔐 **Backend** — [Better Auth](https://www.better-auth.com) on a Cloudflare Worker, storing users & organizations in **D1** and sessions in **KV**. Email + password and social login (Google, Apple, GitHub, Microsoft).
-- 🖥️ **Hosted login page** — a clean, ready-to-use sign-in page your end users hit. Turns on exactly the providers you configure.
+- 🖥️ **Hosted login pages** — built from [better-auth-ui](https://github.com/daveyplate/better-auth-ui) (shadcn/ui components made for Better Auth), themed in Cloudflare's classic orange with light & dark mode. Sign-in, sign-up, and the full auth flow at `/auth/*`, showing exactly the providers you configure.
 - 📊 **Admin dashboard** — [Better Auth Studio](https://github.com/Kinfe123/better-auth-studio) to browse, create, ban, role, and delete users and organizations — behind an admin-only gate.
 
 Everything is one Worker. No servers, no external database, no third-party auth vendor. It runs comfortably inside the [Cloudflare free tier](https://developers.cloudflare.com/workers/platform/pricing/).
@@ -26,7 +26,7 @@ Everything is one Worker. No servers, no external database, no third-party auth 
 | **Data** | Users, accounts, sessions, organizations & members — in your own Cloudflare D1 database |
 | **Sessions** | Stored in Cloudflare KV; optional cross-subdomain SSO cookie |
 | **Admin UI** | Better Auth Studio at the Worker root, gated to admins only |
-| **End-user UI** | Hosted `/login` page you can point your app at, or replace with your own |
+| **End-user UI** | Hosted [better-auth-ui](https://github.com/daveyplate/better-auth-ui) pages at `/auth/*` (sign-in, sign-up, …) in Cloudflare orange, light & dark |
 | **Cost** | $0 on the Cloudflare free tier for typical small/medium apps |
 | **Ownership** | 100% yours — your Cloudflare account, your database, your code, MIT-licensed |
 
@@ -38,9 +38,10 @@ Everything is one Worker. No servers, no external database, no third-party auth 
                          ┌──────────────────────────────────────────────┐
    End users  ─────────► │  Cloudflare Worker (this repo)                │
    (Google / password)   │                                              │
-                         │   /login              → hosted login page     │
-   Your app  ──────────► │   /api/auth/*         → Better Auth (public)  │
-   (SDK / redirect)      │                                              │
+                         │   /auth/*             → login pages           │
+   Your app  ──────────► │                         (better-auth-ui)      │
+   (SDK / redirect)      │   /api/auth/*         → Better Auth (public)  │
+                         │                                              │
                          │   /  and everything   → Better Auth Studio    │
    You (admin)  ───────► │     else              → admin dashboard       │
                          │                          (role=admin only)    │
@@ -77,7 +78,7 @@ The database schema is created automatically on first request — there is **no 
 The dashboard is locked to admins, so bootstrap the first one once:
 
 1. **Temporarily allow sign-up.** In the Cloudflare dashboard → your Worker → *Settings → Variables*, set `ALLOW_SIGNUP = true` and redeploy (or `wrangler deploy`).
-2. Visit `https://<your-worker-url>/login` and sign up with your email + password (or a social provider).
+2. Visit `https://<your-worker-url>/auth/sign-up` and sign up with your email + password (or a social provider).
 3. **Make yourself admin** — two ways, pick one:
    - **Easiest:** set the `ADMIN_EMAILS` variable to your email (comma-separated for several). Anyone in that list is treated as an admin.
    - **Or** promote the row directly:
@@ -135,7 +136,7 @@ await authClient.signIn.email({ email, password });
 const { data } = await authClient.getSession();
 ```
 
-Or just send users to the built-in page: `https://auth.yourdomain.com/login?redirect_to=https://app.yourdomain.com`.
+Or just send users to the built-in page: `https://auth.yourdomain.com/auth/sign-in?redirectTo=/` (the legacy `/login` path works too). After signing in, users land on `redirectTo`.
 
 ---
 
@@ -152,7 +153,7 @@ echo 'ALLOW_SIGNUP="true"'                                >> .dev.vars
 npm run dev                     # http://localhost:8787
 ```
 
-Then open `http://localhost:8787/login`, sign up, and promote yourself:
+Then open `http://localhost:8787/auth/sign-up`, sign up, and promote yourself:
 
 ```sh
 wrangler d1 execute auth-kit-db --local \
@@ -198,7 +199,7 @@ npm run deploy
 
 ## Security notes
 
-- **The dashboard is admin-only.** The Worker checks every non-public request for a Better Auth session with `role=admin` (or an `ADMIN_EMAILS` match) before handing off to Studio. The auth API (`/api/auth/*`) and the `/login` page are intentionally public.
+- **The dashboard is admin-only.** The Worker checks every non-public request for a Better Auth session with `role=admin` (or an `ADMIN_EMAILS` match) before handing off to Studio. The auth API (`/api/auth/*`) and the `/auth/*` login pages are intentionally public.
 - **Keep `ALLOW_SIGNUP` off** in production unless you want open password registration. Social login and admin-created users are unaffected by it.
 - **Rotate nothing into git.** Secrets live in Cloudflare, never in the repo. `.dev.vars` is git-ignored.
 - Want an extra layer? Put the Worker behind [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) to require SSO before anyone even reaches the login page (useful for internal-only tools).
@@ -207,11 +208,11 @@ npm run deploy
 
 ## Staying up to date
 
-The admin dashboard is built from [Better Auth Studio](https://github.com/Kinfe123/better-auth-studio), which is actively developed. This kit pins it as an npm dependency, so you get updates by bumping the version:
+Both UIs come from actively developed open-source projects, pinned as npm dependencies — the admin dashboard from [Better Auth Studio](https://github.com/Kinfe123/better-auth-studio) and the login pages from [better-auth-ui](https://github.com/daveyplate/better-auth-ui). Update by bumping versions:
 
 ```sh
 npm update better-auth-studio better-auth
-npm run build   # re-copies the refreshed Studio UI into ./public
+npm run build   # re-copies the Studio UI and rebuilds the login pages into ./public
 npm run deploy
 ```
 
@@ -221,15 +222,15 @@ We also maintain a continuously-synced fork at [democra-ai/better-auth-studio](h
 
 ## How it fits together
 
-- `src/index.ts` — the Worker: schema auto-migrate, public auth API + login page, admin gate, Studio mount.
+- `src/index.ts` — the Worker: schema auto-migrate, public auth API + login pages, admin gate, Studio mount.
 - `src/auth.ts` — Better Auth configured over D1 + KV, with data-driven social providers.
 - `src/studio-api.ts` — a complete read/write API handler backing the Studio dashboard on Workers (reads via Drizzle, writes via Better Auth's admin/organization APIs).
 - `src/db/` — the generated schema and the boot-time init SQL.
-- `public/login.html` — the hosted login page.
-- `wrangler.jsonc` — bindings + variables.
+- `login/` — the login pages: a small Vite + React app around [better-auth-ui](https://github.com/daveyplate/better-auth-ui), themed in Cloudflare's brand orange (`#F6821F`). Built into `./public` automatically (wrangler runs `npm run build` before `dev` and `deploy`).
+- `wrangler.jsonc` — bindings, variables, and the custom build command.
 
 ---
 
 ## License
 
-[MIT](./LICENSE). Built on the excellent [Better Auth](https://github.com/better-auth/better-auth) and [Better Auth Studio](https://github.com/Kinfe123/better-auth-studio) projects.
+[MIT](./LICENSE). Built on the excellent [Better Auth](https://github.com/better-auth/better-auth), [Better Auth Studio](https://github.com/Kinfe123/better-auth-studio), and [better-auth-ui](https://github.com/daveyplate/better-auth-ui) projects.

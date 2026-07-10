@@ -1,0 +1,95 @@
+@import "tailwindcss";
+@import "@daveyplate/better-auth-ui/css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * shadcn/ui theme in Cloudflare's classic brand orange #F6821F
+ * (Cloudflare's own design token: --color-cl1-brand-orange).
+ * Buttons use near-black ink on the orange — Cloudflare's own pattern (7.66:1);
+ * white on this orange is 2.58:1 and unreadable.
+ */
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+
+  /* Cloudflare brand orange #F6821F */
+  --primary: oklch(0.7235 0.1724 53.79);
+  --primary-foreground: oklch(0.145 0 0);
+
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  /* warm cream hover tint — Cloudflare cl1-orange-9 #FEF1E6 */
+  --accent: oklch(0.9654 0.0203 62.87);
+  --accent-foreground: oklch(0.2524 0.0572 58);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.7235 0.1724 53.79);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+
+  /* same brand orange — 6.9:1 against the dark card, like Cloudflare docs dark mode */
+  --primary: oklch(0.7235 0.1724 53.79);
+  --primary-foreground: oklch(0.145 0 0);
+
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+
+  /* deep amber — Cloudflare cl1-orange-1 #482303, with cl1-orange-8 #FBCDA5 ink */
+  --accent: oklch(0.3013 0.0703 55.93);
+  --accent-foreground: oklch(0.8786 0.0741 62.64);
+
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.7235 0.1724 53.79);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+body {
+  @apply bg-background text-foreground;
+}

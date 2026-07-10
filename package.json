@@ -16,9 +16,9 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "node scripts/build-assets.mjs",
+    "build": "node scripts/build-assets.mjs && vite build",
     "postinstall": "node scripts/build-assets.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p login",
     "db:create": "wrangler d1 create auth-kit-db && wrangler kv namespace create KV",
     "db:generate": "drizzle-kit generate",
     "db:apply": "wrangler d1 migrations apply auth-kit-db --remote",
@@ -32,13 +32,26 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260710.1",
+    "@daveyplate/better-auth-ui": "^3.4.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "drizzle-kit": "^0.31.10",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "sonner": "^2.0.7",
+    "tailwindcss": "^4.3.2",
     "typescript": "^7.0.2",
+    "vite": "^8.1.4",
     "wrangler": "^4.110.0"
   },
   "cloudflare": {
     "label": "Cloudflare Auth Kit",
-    "products": ["Workers", "D1", "KV"],
+    "products": [
+      "Workers",
+      "D1",
+      "KV"
+    ],
     "bindings": {
       "DB": {
         "description": "D1 database that stores users, accounts, and organizations."
