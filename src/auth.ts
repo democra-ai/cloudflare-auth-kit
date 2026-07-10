@@ -11,17 +11,41 @@ import { emailReady, sendEmail } from "./email";
 import type { Env } from "./types";
 
 /**
+ * Per-application overrides. Omit for the control-plane instance (the deployment's own
+ * `/api/auth`), pass an app for a tenant mounted under `/<slug>/api/auth`.
+ *
+ * Isolation rests on THREE things, all of them required:
+ *   • `secret`       — the session cookie is HMAC-signed with it, so app B cannot forge or
+ *                      accept a cookie minted by app A.
+ *   • `cookiePrefix` — cookies on one host are identified by NAME; a scoped Path alone is
+ *                      ambiguous on the wire (the browser sends both, without path metadata).
+ *   • `kv`           — sessions live in KV and `findSession` trusts the KV hit without
+ *                      re-checking the database, so a shared KV would defeat a separate D1.
+ */
+export interface AppAuth {
+  db: D1Database;
+  kv: KVNamespace;
+  secret: string;
+  /** e.g. "/citetrack/api/auth" — Better Auth's router strips this itself, no URL rewrite. */
+  authBasePath: string;
+  cookiePrefix: string;
+}
+
+/**
  * Better Auth over Cloudflare D1 (users/accounts/orgs) + KV (sessions).
  *
  * A social provider turns on the moment its client id + secret secrets are present.
  * Social sign-in implicitly creates the user (the Supabase-Auth behaviour): a user who
  * signs in with Google becomes your user, no password, no separate sign-up.
  */
-export function createAuth(env: Env, requestOrigin?: string) {
-  if (!env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET.length < 32) {
+export function createAuth(env: Env, requestOrigin?: string, app?: AppAuth) {
+  const secret = app?.secret ?? env.BETTER_AUTH_SECRET;
+  if (!secret || secret.length < 32) {
     throw new Error("BETTER_AUTH_SECRET is missing or too short (<32).");
   }
-  const db = drizzle(env.DB, { schema });
+  const d1 = app?.db ?? env.DB;
+  const kv = app?.kv ?? env.KV;
+  const db = drizzle(d1, { schema });
 
   // Zero-config base URL: use AUTH_URL if set, otherwise fall back to the origin the
   // request actually arrived on. This makes the one-click deploy work on the auto-assigned
@@ -42,12 +66,14 @@ export function createAuth(env: Env, requestOrigin?: string) {
   const trustedOrigins = [baseURL, requestOrigin, ...(env.TRUSTED_ORIGINS ?? "").split(",")]
     .map((o) => (o ?? "").trim())
     .filter(Boolean);
-  const cookieDomain = (env.COOKIE_DOMAIN ?? "").trim();
+  // Tenants get host-only cookies: a .democra.ai domain cookie would blanket every app path.
+  const cookieDomain = app ? "" : (env.COOKIE_DOMAIN ?? "").trim();
 
   return betterAuth({
     database: drizzleAdapter(db, { provider: "sqlite", schema }),
-    secret: env.BETTER_AUTH_SECRET,
+    secret,
     ...(baseURL ? { baseURL } : {}),
+    ...(app ? { basePath: app.authBasePath } : {}),
     trustedOrigins,
     emailAndPassword: {
       enabled: env.PASSWORD_LOGIN !== "false",
@@ -89,14 +115,18 @@ export function createAuth(env: Env, requestOrigin?: string) {
         ...(env.PASSKEY_RP_NAME?.trim() ? { rpName: env.PASSKEY_RP_NAME.trim() } : {}),
       }),
     ],
-    ...(cookieDomain ? { advanced: { crossSubDomainCookies: { enabled: true, domain: cookieDomain } } } : {}),
+    advanced: {
+      ...(cookieDomain ? { crossSubDomainCookies: { enabled: true, domain: cookieDomain } } : {}),
+      // Renames EVERY cookie this instance sets (session_token, passkey challenge, …).
+      ...(app ? { cookiePrefix: app.cookiePrefix } : {}),
+    },
     secondaryStorage: {
-      get: async (key) => env.KV.get(key),
+      get: async (key) => kv.get(key),
       set: async (key, value, ttl) => {
-        await env.KV.put(key, value, ttl ? { expirationTtl: Math.max(60, ttl) } : undefined);
+        await kv.put(key, value, ttl ? { expirationTtl: Math.max(60, ttl) } : undefined);
       },
       delete: async (key) => {
-        await env.KV.delete(key);
+        await kv.delete(key);
       },
     },
   });

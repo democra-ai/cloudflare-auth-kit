@@ -17,6 +17,15 @@ export interface Env {
   ADMIN_EMAILS?: string;
   /** "true" (transient) opens public password sign-up so you can seed the first admin. */
   ALLOW_SIGNUP?: string;
+  /**
+   * Applications (tenants), as a JSON array. Each gets its own D1 + KV + secret, so users
+   * never leak between apps. Empty = one app on DB/KV. See src/apps.ts.
+   *   [{"slug":"default","name":"Main"},
+   *    {"slug":"citetrack","name":"CiteTrack","db":"DB_CITETRACK","kv":"KV_CITETRACK","secret":"SECRET_CITETRACK"}]
+   * Per-app bindings (DB_*, KV_*) and secrets (SECRET_*) are looked up on `env` by name and
+   * must be declared in wrangler config — adding an app needs a redeploy.
+   */
+  APPS?: string;
   /** WebAuthn relying-party id, e.g. ".example.com"-style parent domain "example.com" for
    *  cross-subdomain passkeys. Empty = the request hostname. Fixed at first registration. */
   PASSKEY_RP_ID?: string;

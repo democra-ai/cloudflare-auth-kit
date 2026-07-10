@@ -4,6 +4,7 @@ import { AuthUIProvider, AuthView, PasskeysCard } from "@daveyplate/better-auth-
 import { Toaster } from "sonner";
 import { authClient } from "./auth-client";
 import { zhCN } from "./localization-zh";
+import { APP_BASE, viewPathname } from "./app-slug";
 import "./index.css";
 
 import type { SocialProvider } from "better-auth/social-providers";
@@ -22,13 +23,14 @@ const LANG = getLang();
 // The Worker tells us which social providers have credentials configured and
 // whether public password sign-up is open, so the UI always matches the server.
 type Health = {
+  app?: { slug: string; name: string };
   providers?: Record<string, boolean>;
   signup?: boolean;
   passkey?: boolean;
   password?: boolean;
   emailOTP?: boolean;
 };
-const health = await fetch("/providers")
+const health = await fetch(`${APP_BASE}/providers`)
   .then((r) => r.json() as Promise<Health>)
   .catch(() => ({}) as Health);
 
@@ -36,13 +38,15 @@ const providers = (["google", "apple", "github", "microsoft"] as SocialProvider[
   (p) => health.providers?.[p],
 );
 const signUpOpen = health.signup === true;
+const appName = health.app?.name ?? "Cloudflare Auth Kit";
 
 const params = new URLSearchParams(window.location.search);
 // better-auth-ui reads ?redirectTo= natively; keep ?redirect_to= working too.
-const redirectTo = params.get("redirectTo") || params.get("redirect_to") || "/";
+const redirectTo = params.get("redirectTo") || params.get("redirect_to") || `${APP_BASE}/`;
 
 // /login (legacy entry) renders the sign-in view; /auth/* picks the view from the path.
-const pathname = window.location.pathname === "/login" ? "/auth/sign-in" : window.location.pathname;
+// Under a tenant the URL is /<slug>/auth/sign-in, so strip the app prefix first.
+const pathname = viewPathname();
 
 // Views that must render even when a session exists (completing a flow / signing out).
 const FLOW_VIEWS = new Set([
@@ -91,7 +95,7 @@ function AccountCard() {
           Continue
         </a>
         <button
-          onClick={() => authClient.signOut().then(() => window.location.replace("/auth/sign-in"))}
+          onClick={() => authClient.signOut().then(() => window.location.replace(`${APP_BASE}/auth/sign-in`))}
           className="border-input hover:bg-accent hover:text-accent-foreground inline-flex h-9 items-center justify-center rounded-md border bg-transparent text-sm font-medium transition-colors"
         >
           Sign out
@@ -155,7 +159,7 @@ function App() {
         <div className="flex items-center gap-2.5">
           <div className="bg-primary size-3 rounded-full" aria-hidden />
           <span className="text-muted-foreground text-sm font-medium tracking-wide">
-            Cloudflare Auth Kit
+            {appName}
           </span>
         </div>
         <Gate />
