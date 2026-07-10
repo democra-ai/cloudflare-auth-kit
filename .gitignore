@@ -10,3 +10,5 @@ public/logo.png
 public/shaders.png
 public/vite.svg
 public/login.html
+# private per-instance deploy config
+wrangler.self.jsonc
