@@ -21,3 +21,11 @@ export const INIT_SQL: string[] = [
   "CREATE TABLE `verification` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`identifier` text NOT NULL,\n\t`value` text NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,\n\t`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL\n);",
   "CREATE INDEX `verification_identifier_idx` ON `verification` (`identifier`);"
 ];
+
+// Added in the passkey release (migrations/0001_passkey.sql). Kept separate so existing
+// deployments (user table present, passkey table missing) can be healed at boot.
+export const PASSKEY_SQL: string[] = [
+  "CREATE TABLE `passkey` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`name` text,\n\t`public_key` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`credential_id` text NOT NULL,\n\t`counter` integer NOT NULL,\n\t`device_type` text NOT NULL,\n\t`backed_up` integer NOT NULL,\n\t`transports` text,\n\t`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,\n\t`aaguid` text,\n\tFOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+  "CREATE INDEX `passkey_userId_idx` ON `passkey` (`user_id`);",
+  "CREATE INDEX `passkey_credentialID_idx` ON `passkey` (`credential_id`);",
+];

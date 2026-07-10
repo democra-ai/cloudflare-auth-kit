@@ -1,29 +1,34 @@
 import { betterAuthStudio } from "better-auth-studio/cloudflare-workers";
 import { createAuth, isAdmin } from "./auth";
 import { createStudioApiHandler } from "./studio-api";
-import { INIT_SQL } from "./db/init-sql";
+import { INIT_SQL, PASSKEY_SQL } from "./db/init-sql";
 import type { Env } from "./types";
 
 const studioApi = createStudioApiHandler();
 
 /**
- * Create the schema on first boot if it's missing, so the Deploy to Cloudflare button
- * needs zero manual migration. Cached via KV so it runs at most once per deployment.
+ * Create/upgrade the schema on first boot, so the Deploy to Cloudflare button needs zero
+ * manual migration. The KV flag is versioned: bumping it makes existing deployments
+ * re-probe once after an upgrade (e.g. v2 added the passkey table).
  */
+const SCHEMA_FLAG = "__schema_ready_v2";
 let schemaReady = false;
 async function ensureSchema(env: Env): Promise<void> {
   if (schemaReady) return;
-  if (await env.KV.get("__schema_ready")) {
+  if (await env.KV.get(SCHEMA_FLAG)) {
     schemaReady = true;
     return;
   }
-  const probe = await env.DB.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='user'",
-  ).first();
-  if (!probe) {
-    await env.DB.batch(INIT_SQL.map((s) => env.DB.prepare(s)));
+  const tables = await env.DB.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('user','passkey')",
+  ).all();
+  const have = new Set((tables.results ?? []).map((r) => (r as { name: string }).name));
+  if (!have.has("user")) {
+    await env.DB.batch([...INIT_SQL, ...PASSKEY_SQL].map((s) => env.DB.prepare(s)));
+  } else if (!have.has("passkey")) {
+    await env.DB.batch(PASSKEY_SQL.map((s) => env.DB.prepare(s)));
   }
-  await env.KV.put("__schema_ready", "1");
+  await env.KV.put(SCHEMA_FLAG, "1");
   schemaReady = true;
 }
 
@@ -73,6 +78,7 @@ export default {
             microsoft: Boolean(env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET),
           },
           signup: env.ALLOW_SIGNUP === "true",
+          passkey: true,
           callbackBase: `${(env.AUTH_URL ?? "").trim() || url.origin}/api/auth/callback`,
         }),
         { headers: { "Content-Type": "application/json" } },

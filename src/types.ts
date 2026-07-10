@@ -14,6 +14,11 @@ export interface Env {
   ADMIN_EMAILS?: string;
   /** "true" (transient) opens public password sign-up so you can seed the first admin. */
   ALLOW_SIGNUP?: string;
+  /** WebAuthn relying-party id, e.g. ".example.com"-style parent domain "example.com" for
+   *  cross-subdomain passkeys. Empty = the request hostname. Fixed at first registration. */
+  PASSKEY_RP_ID?: string;
+  /** Human-readable name shown in the passkey prompt. Empty = Better Auth's default. */
+  PASSKEY_RP_NAME?: string;
 
   // secrets (prompted by the deploy UI via .dev.vars.example)
   BETTER_AUTH_SECRET: string;

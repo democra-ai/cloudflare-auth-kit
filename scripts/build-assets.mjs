@@ -1,7 +1,17 @@
 // Copies the Better Auth Studio shell (from node_modules) into ./public,
 // next to our own login.html, so one ASSETS binding serves both.
-import { cp, mkdir, access, readdir } from "node:fs/promises";
+import { cp, mkdir, access, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
+
+// Remove stale hashed login bundles first (vite runs with emptyOutDir:false).
+const publicAssets = new URL("../public/assets/", import.meta.url).pathname;
+try {
+  for (const f of await readdir(publicAssets)) {
+    if (f.startsWith("login-")) await rm(join(publicAssets, f));
+  }
+} catch {
+  /* no assets dir yet */
+}
 
 // Walk up from cwd to find node_modules/better-auth-studio/dist/public.
 async function findStudioPublic(start) {

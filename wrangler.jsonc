@@ -47,6 +47,11 @@
     // app's front-end domains if they differ from this Worker's origin.
     "TRUSTED_ORIGINS": "",
     // Comma-separated emails allowed into the admin dashboard (plus any user with role=admin).
-    "ADMIN_EMAILS": ""
+    "ADMIN_EMAILS": "",
+    // WebAuthn passkeys work out of the box (relying-party id = the request hostname).
+    // Set PASSKEY_RP_ID to a parent domain (e.g. "example.com") only if one passkey should
+    // work across several subdomains — decide before the first passkey is registered.
+    "PASSKEY_RP_ID": "",
+    "PASSKEY_RP_NAME": ""
   }
 }

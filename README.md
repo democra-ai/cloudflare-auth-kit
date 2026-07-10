@@ -5,7 +5,7 @@
 A self-hosted, Supabase-Auth-style stack you fully own:
 
 - 🔐 **Backend** — [Better Auth](https://www.better-auth.com) on a Cloudflare Worker, storing users & organizations in **D1** and sessions in **KV**. Email + password and social login (Google, Apple, GitHub, Microsoft).
-- 🖥️ **Hosted login pages** — built from [better-auth-ui](https://github.com/daveyplate/better-auth-ui) (shadcn/ui components made for Better Auth), themed in Cloudflare's classic orange with light & dark mode. Sign-in, sign-up, and the full auth flow at `/auth/*`, showing exactly the providers you configure.
+- 🖥️ **Hosted login pages** — built from [better-auth-ui](https://github.com/daveyplate/better-auth-ui) (shadcn/ui components made for Better Auth), themed in Cloudflare's classic orange with light & dark mode. Sign-in, sign-up, **passkeys**, and the full auth flow at `/auth/*`, showing exactly the providers you configure.
 - 📊 **Admin dashboard** — [Better Auth Studio](https://github.com/Kinfe123/better-auth-studio) to browse, create, ban, role, and delete users and organizations — behind an admin-only gate.
 
 Everything is one Worker. No servers, no external database, no third-party auth vendor. It runs comfortably inside the [Cloudflare free tier](https://developers.cloudflare.com/workers/platform/pricing/).
@@ -22,7 +22,7 @@ Everything is one Worker. No servers, no external database, no third-party auth 
 
 | | |
 |---|---|
-| **Sign-in methods** | Email + password, Google, Apple, GitHub, Microsoft (each turns on automatically once you provide its client id + secret) |
+| **Sign-in methods** | Email + password, **passkeys (WebAuthn)**, Google, Apple, GitHub, Microsoft (each social provider turns on automatically once you provide its client id + secret) |
 | **Data** | Users, accounts, sessions, organizations & members — in your own Cloudflare D1 database |
 | **Sessions** | Stored in Cloudflare KV; optional cross-subdomain SSO cookie |
 | **Admin UI** | Better Auth Studio at the Worker root, gated to admins only |
@@ -117,6 +117,18 @@ Signing in with a social provider **creates the user automatically** — no sepa
 
 ---
 
+## Passkeys
+
+Passkeys (WebAuthn) work **out of the box** — no configuration, no extra service:
+
+1. Sign in with your password at `/auth/sign-in`.
+2. You'll see a **Passkeys** card — click **Add Passkey** and follow your browser/OS prompt (Touch ID, Windows Hello, phone, security key).
+3. Next time, click **Sign in with Passkey** instead of typing a password.
+
+By default a passkey is bound to the exact hostname. If you run several subdomains against one user base and want a single passkey to work on all of them, set `PASSKEY_RP_ID` to the parent domain (e.g. `example.com`) **before anyone registers a passkey** — the relying-party id is baked into each credential and can't be changed later. `PASSKEY_RP_NAME` sets the display name in the passkey prompt.
+
+---
+
 ## Connect your app
 
 Your application talks to the public auth API. Use the [Better Auth client](https://www.better-auth.com/docs/installation) pointed at your Worker:
@@ -184,6 +196,8 @@ npm run deploy
 | `ADMIN_EMAILS` | — | Comma-separated emails allowed into the dashboard (besides `role=admin` users). |
 | `ALLOW_SIGNUP` | — | `true` opens public password sign-up. Leave off in production. |
 | `COOKIE_DOMAIN` | — | e.g. `.yourdomain.com` to share sessions across subdomains. |
+| `PASSKEY_RP_ID` | — | Parent domain for cross-subdomain passkeys (e.g. `yourdomain.com`). Empty = request hostname. Fix before first registration. |
+| `PASSKEY_RP_NAME` | — | Display name in the passkey prompt. |
 | `TRUSTED_ORIGINS` | — | Extra app origins allowed to call the auth API with credentials. |
 | `GOOGLE_* / GITHUB_* / APPLE_* / MICROSOFT_*` | — (secret) | Social login credentials. |
 

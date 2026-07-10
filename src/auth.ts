@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username } from "better-auth/plugins";
 import { admin } from "better-auth/plugins";
 import { organization } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./db/schema";
 import type { Env } from "./types";
@@ -48,7 +49,19 @@ export function createAuth(env: Env, requestOrigin?: string) {
     trustedOrigins,
     emailAndPassword: { enabled: true, disableSignUp: env.ALLOW_SIGNUP !== "true" },
     ...(Object.keys(socialProviders).length ? { socialProviders } : {}),
-    plugins: [username(), admin(), organization()],
+    plugins: [
+      username(),
+      admin(),
+      organization(),
+      // WebAuthn passkeys. Zero-config: rpID defaults to the baseURL hostname and the
+      // expected origin to the request's Origin header. Set PASSKEY_RP_ID to a parent
+      // domain (e.g. "example.com") to let one passkey work across subdomains — decide
+      // BEFORE the first registration; credentials are bound to the rpID forever.
+      passkey({
+        ...(env.PASSKEY_RP_ID?.trim() ? { rpID: env.PASSKEY_RP_ID.trim() } : {}),
+        ...(env.PASSKEY_RP_NAME?.trim() ? { rpName: env.PASSKEY_RP_NAME.trim() } : {}),
+      }),
+    ],
     ...(cookieDomain ? { advanced: { crossSubDomainCookies: { enabled: true, domain: cookieDomain } } } : {}),
     secondaryStorage: {
       get: async (key) => env.KV.get(key),

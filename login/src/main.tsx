@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { AuthUIProvider, AuthView } from "@daveyplate/better-auth-ui";
+import { AuthUIProvider, AuthView, PasskeysCard } from "@daveyplate/better-auth-ui";
 import { Toaster } from "sonner";
 import { authClient } from "./auth-client";
 import "./index.css";
@@ -9,9 +9,10 @@ import type { SocialProvider } from "better-auth/social-providers";
 
 // The Worker tells us which social providers have credentials configured and
 // whether public password sign-up is open, so the UI always matches the server.
+type Health = { providers?: Record<string, boolean>; signup?: boolean; passkey?: boolean };
 const health = await fetch("/providers")
-  .then((r) => r.json() as Promise<{ providers?: Record<string, boolean>; signup?: boolean }>)
-  .catch(() => ({}) as { providers?: Record<string, boolean>; signup?: boolean });
+  .then((r) => r.json() as Promise<Health>)
+  .catch(() => ({}) as Health);
 
 const providers = (["google", "apple", "github", "microsoft"] as SocialProvider[]).filter(
   (p) => health.providers?.[p],
@@ -85,9 +86,16 @@ function AccountCard() {
 function Gate() {
   const { data: session, isPending } = authClient.useSession();
   if (isPending) return null;
-  // Signed-in visitors on an entry view (sign-in/sign-up) see their account instead
-  // of a redundant login form; flow views (sign-out, callback, ...) still render.
-  if (session && isEntryView) return <AccountCard />;
+  // Signed-in visitors on an entry view (sign-in/sign-up) see their account — plus
+  // passkey management, so a password sign-in can enroll a passkey for next time.
+  // Flow views (sign-out, callback, ...) still render.
+  if (session && isEntryView)
+    return (
+      <div className="flex w-full max-w-sm flex-col gap-4">
+        <AccountCard />
+        {health.passkey === true && <PasskeysCard />}
+      </div>
+    );
   return <AuthView pathname={pathname} />;
 }
 
@@ -97,6 +105,7 @@ function App() {
       authClient={authClient}
       social={providers.length ? { providers } : undefined}
       signUp={signUpOpen}
+      passkey={health.passkey === true}
       credentials={{ forgotPassword: false }}
       redirectTo={redirectTo}
     >
