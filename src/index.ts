@@ -3,7 +3,7 @@ import { createAuth, isAdmin } from "./auth";
 import { createStudioApiHandler } from "./studio-api";
 import { INIT_SQL, PASSKEY_SQL } from "./db/init-sql";
 import { emailReady } from "./email";
-import { listApps, matchAppSlug, resolveApp, type ResolvedApp } from "./apps";
+import { DEFAULT_SLUG, listApps, matchAppSlug, resolveApp, type ResolvedApp } from "./apps";
 import { renderMasterPage } from "./master-page";
 import type { Env } from "./types";
 
@@ -104,6 +104,31 @@ function withStudioBranding(res: Response, basePath = ""): Response {
     .transform(res);
 }
 
+/**
+ * Which app started this OAuth flow?
+ *
+ * All apps share ONE registered callback, so the provider comes back to `/api/auth/callback/x`
+ * with no idea which tenant it belongs to. Better Auth keys the pending flow by the `state`
+ * value. With `secondaryStorage` configured (we store sessions in KV) `createVerificationValue`
+ * writes it to KV as `verification:<state>` — NOT to the `verification` table — and the callback
+ * reads it back the same way. So we ask each tenant's KV whether it owns this state.
+ *
+ * Keying on state is race-free. A shared dispatch cookie would not be: two concurrent sign-ins
+ * to different apps in one browser would overwrite each other and misroute the second callback.
+ */
+async function findAppByState(env: Env, state: string): Promise<ResolvedApp | null> {
+  for (const def of listApps(env)) {
+    if (def.slug === DEFAULT_SLUG) continue; // the control plane already owns this route
+    try {
+      const app = resolveApp(env, def.slug);
+      if (await app.kv.get(`verification:${state}`)) return app;
+    } catch {
+      // a tenant with a bad binding simply cannot own this state
+    }
+  }
+  return null;
+}
+
 function withCors(res: Response, origin: string | null, trusted: string[]): Response {
   const h = new Headers(res.headers);
   const allow = origin && trusted.includes(origin) ? origin : trusted[0] ?? "*";
@@ -122,6 +147,38 @@ export default {
     await ensureSchema({ slug: "__control", db: env.DB, kv: env.KV } as ResolvedApp);
     const auth = createAuth(env, url.origin);
     const trusted = [env.AUTH_URL, url.origin, ...(env.TRUSTED_ORIGINS ?? "").split(",")].map((o) => (o ?? "").trim()).filter(Boolean);
+
+    // Multi-application mode is OPT-IN: it only turns on when `APPS` lists more than one app.
+    // With a single app the deployment is exactly what it was before — one user pool, one URL,
+    // one OAuth callback, Studio mounted at the root.
+    const multiApp = listApps(env).length > 1;
+
+    // ── 0. THE ONE OAuth callback, shared by every app ───────────────────────
+    // Registered with Google/GitHub exactly once, forever. Every tenant pins its
+    // `redirectURI` here (see src/auth.ts), so the provider always returns to this URL; we
+    // route it to the app that started the flow. Unmatched states fall through to the
+    // control plane, which owns this route natively.
+    const cb = multiApp ? p.match(/^\/api\/auth\/callback\/([a-zA-Z0-9_-]+)$/) : null;
+    if (cb) {
+      const state = url.searchParams.get("state");
+      const tenant = state ? await findAppByState(env, state) : null;
+      if (tenant) {
+        const tenantAuth = createAuth(env, url.origin, {
+          db: tenant.db,
+          kv: tenant.kv,
+          secret: tenant.secret,
+          authBasePath: tenant.authBasePath,
+          cookiePrefix: tenant.cookiePrefix,
+        });
+        const to = new URL(request.url);
+        to.pathname = `${tenant.authBasePath}/callback/${cb[1]}`;
+        return withCors(
+          await tenantAuth.handler(new Request(to.toString(), request)),
+          request.headers.get("origin"),
+          trusted,
+        );
+      }
+    }
 
     // ── 1. Better Auth API (PUBLIC — end users sign in here) ──────────────────
     if (p === "/api/auth" || p.startsWith("/api/auth/")) {
@@ -182,7 +239,7 @@ export default {
     // ── 2b. TENANT surfaces (PUBLIC): /<slug>/api/auth/*, /<slug>/auth/*, /<slug>/providers
     // Better Auth's router derives its basePath from the configured baseURL and strips it
     // itself, so the original Request is handed over untouched.
-    const publicSlug = matchAppSlug(env, p);
+    const publicSlug = multiApp ? matchAppSlug(env, p) : null;
     if (publicSlug) {
       const rest = p.slice(publicSlug.length + 1) || "/";
       const isAuthApi = rest === "/api/auth" || rest.startsWith("/api/auth/");
@@ -259,10 +316,34 @@ export default {
       return Response.redirect(to.toString(), 302);
     }
 
-    // ── 4a. The app directory ────────────────────────────────────────────────
+    const STUDIO_TOOLS = {
+      // Kept out: run-migration is destructive; the rest call endpoints we do not implement
+      // (they would render a card and then 501). Everything else now has a real handler.
+      exclude: ["run-migration", "test-oauth", "export-data", "password-strength", "token-generator", "plugin-generator"],
+    };
+
+    // ── 4a. SINGLE APP (the default): Studio at the root, exactly as before ───
+    // No app directory, no path prefix, no fetch shim — one user pool, one callback URL.
+    if (!multiApp) {
+      const only = resolveApp(env, listApps(env)[0].slug);
+      await ensureSchema(only);
+      const authBaseURL = `${(env.AUTH_URL ?? "").trim() || url.origin}/api/auth`;
+      const studio = betterAuthStudio<Env, ExecutionContext>({
+        auth,
+        basePath: "",
+        assets: (e) => e.ASSETS,
+        apiHandler: (req, context) => studioApi({ auth, env, app: only, authBaseURL }, req, context),
+        metadata: { title: "User Management", theme: "dark" },
+        lastSeenAt: { enabled: false },
+        tools: STUDIO_TOOLS,
+      });
+      return withStudioBranding(await studio(request, env, ctx));
+    }
+
+    // ── 4b. The app directory ────────────────────────────────────────────────
     if (p === "/" || p === "/apps") return renderMasterPage(env, (env.AUTH_URL ?? "").trim() || url.origin);
 
-    // ── 4b. One Studio per app, each bound to that app's own database ─────────
+    // ── 4c. One Studio per app, each bound to that app's own database ─────────
     const slug = matchAppSlug(env, p);
     if (!slug) {
       const known = listApps(env).map((a) => a.slug);
@@ -290,9 +371,7 @@ export default {
       apiHandler: (req, context) => studioApi({ auth: appAuth, env, app, authBaseURL }, req, context),
       metadata: { title: `${app.name} · 用户管理`, theme: "dark" },
       lastSeenAt: { enabled: false },
-      // Kept out: run-migration is destructive; the rest call endpoints we do not implement
-      // (they would render a card and then 501). Everything else now has a real handler.
-      tools: { exclude: ["run-migration", "test-oauth", "export-data", "password-strength", "token-generator", "plugin-generator"] },
+      tools: STUDIO_TOOLS,
     });
     return withStudioBranding(await studio(request, env, ctx), `/${slug}`);
   },

@@ -15,3 +15,4 @@ wrangler.self.jsonc
 public/studio-i18n.js
 public/studio-theme.css
 wrangler.dev.jsonc
+wrangler.single.jsonc

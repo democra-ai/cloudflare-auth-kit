@@ -32,6 +32,18 @@ export interface AppAuth {
 }
 
 /**
+ * Every app shares ONE OAuth callback — the single URL registered with Google/GitHub once,
+ * forever. Pinning `redirectURI` makes Better Auth send that exact value both when building
+ * the authorize URL and when exchanging the code (`options.redirectURI || redirectURI` in
+ * create-authorization-url.mjs and validate-authorization-code.mjs), so the two byte-match
+ * no matter what basePath the app is mounted under. Without it each app would derive
+ * `${baseURL}/callback/<provider>` and you'd have to register N redirect URIs.
+ *
+ * The Worker then dispatches that one callback to the right app (see src/index.ts).
+ */
+const sharedCallback = (base: string, provider: string) => `${base}/api/auth/callback/${provider}`;
+
+/**
  * Better Auth over Cloudflare D1 (users/accounts/orgs) + KV (sessions).
  *
  * A social provider turns on the moment its client id + secret secrets are present.
@@ -56,6 +68,8 @@ export function createAuth(env: Env, requestOrigin?: string, app?: AppAuth) {
   const pair = (name: string, id?: string, secret?: string, extra?: Record<string, string | undefined>) => {
     if (!id || !secret) return;
     socialProviders[name] = { clientId: id, clientSecret: secret };
+    // Tenants point at the deployment's ONE registered callback, not their own basePath.
+    if (app && baseURL) socialProviders[name].redirectURI = sharedCallback(baseURL, name);
     for (const [k, v] of Object.entries(extra ?? {})) if (v) socialProviders[name][k] = v;
   };
   pair("google", env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET);
