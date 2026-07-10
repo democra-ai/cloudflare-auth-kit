@@ -55,7 +55,10 @@ export function createAuth(env: Env, requestOrigin?: string) {
     },
     ...(Object.keys(socialProviders).length ? { socialProviders } : {}),
     plugins: [
-      username(),
+      // The username plugin exposes its OWN password sign-in (/sign-in/username), so it
+      // must be dropped in passwordless mode — otherwise disabling emailAndPassword alone
+      // would still leave a password login path open.
+      ...(env.PASSWORD_LOGIN !== "false" ? [username()] : []),
       admin(),
       organization(),
       // Email-code (OTP) sign-in — on when an email backend is configured (see email.ts).
