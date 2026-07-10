@@ -43,3 +43,12 @@ for (const entry of await readdir(src)) {
   await cp(join(src, entry), join(dest, entry), { recursive: true });
 }
 console.log(`[build-assets] copied Studio shell from ${src} into ./public`);
+
+// The Simplified-Chinese overlay for the Studio UI (served at /studio-i18n.js, injected
+// into every Studio HTML response by the Worker).
+try {
+  await cp(new URL("../i18n/studio-overlay.js", import.meta.url).pathname, join(dest, "studio-i18n.js"));
+  console.log("[build-assets] copied studio-i18n.js overlay into ./public");
+} catch {
+  console.warn("[build-assets] i18n/studio-overlay.js missing — Studio stays English-only");
+}

@@ -140,6 +140,15 @@ To go **fully passwordless**, set `PASSWORD_LOGIN = false` — the password form
 
 ---
 
+## Language (English / 中文)
+
+Both the login pages and the admin dashboard ship **English and Simplified Chinese**, defaulting to Chinese with a one-click **中 / EN** toggle in the corner (remembered per browser).
+
+- The login pages use better-auth-ui's built-in `localization` — proper i18n.
+- The Studio dashboard has no upstream i18n, so the kit injects a small DOM-translation overlay (`i18n/studio-overlay.js`, served at `/studio-i18n.js`). Edit that file's dictionary to adjust wording or add another language; untranslated strings simply stay English.
+
+---
+
 ## Connect your app
 
 Your application talks to the public auth API. Use the [Better Auth client](https://www.better-auth.com/docs/installation) pointed at your Worker:

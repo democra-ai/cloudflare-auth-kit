@@ -12,3 +12,4 @@ public/vite.svg
 public/login.html
 # private per-instance deploy config
 wrangler.self.jsonc
+public/studio-i18n.js

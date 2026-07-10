@@ -3,9 +3,21 @@ import ReactDOM from "react-dom/client";
 import { AuthUIProvider, AuthView, PasskeysCard } from "@daveyplate/better-auth-ui";
 import { Toaster } from "sonner";
 import { authClient } from "./auth-client";
+import { zhCN } from "./localization-zh";
 import "./index.css";
 
 import type { SocialProvider } from "better-auth/social-providers";
+
+// Language: default Chinese; a floating 中/EN toggle (shared with the Studio overlay via
+// the `bas-lang` localStorage key) flips it. Passing localization renders the UI in Chinese.
+const getLang = () => {
+  try {
+    return localStorage.getItem("bas-lang") === "en" ? "en" : "zh";
+  } catch {
+    return "zh";
+  }
+};
+const LANG = getLang();
 
 // The Worker tells us which social providers have credentials configured and
 // whether public password sign-up is open, so the UI always matches the server.
@@ -105,6 +117,27 @@ function Gate() {
   return <AuthView pathname={pathname} />;
 }
 
+function LangToggle() {
+  const flip = () => {
+    try {
+      localStorage.setItem("bas-lang", LANG === "zh" ? "en" : "zh");
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  };
+  return (
+    <button
+      type="button"
+      onClick={flip}
+      title={LANG === "zh" ? "Switch to English" : "切换到中文"}
+      className="border-input hover:bg-accent hover:text-accent-foreground fixed right-3 top-3 z-50 rounded-lg border px-2.5 py-1 text-xs font-semibold"
+    >
+      {LANG === "zh" ? "EN" : "中文"}
+    </button>
+  );
+}
+
 function App() {
   return (
     <AuthUIProvider
@@ -114,8 +147,10 @@ function App() {
       passkey={health.passkey === true}
       emailOTP={health.emailOTP === true}
       credentials={health.password === false ? false : { forgotPassword: false }}
+      localization={LANG === "zh" ? zhCN : undefined}
       redirectTo={redirectTo}
     >
+      <LangToggle />
       <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-4 md:p-6">
         <div className="flex items-center gap-2.5">
           <div className="bg-primary size-3 rounded-full" aria-hidden />
