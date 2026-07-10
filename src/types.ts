@@ -3,6 +3,9 @@ export interface Env {
   DB: D1Database;
   KV: KVNamespace;
   ASSETS: Fetcher;
+  /** Optional `send_email` binding — enables email-code (OTP) sign-in. Only delivers to
+   *  destination addresses verified on your Cloudflare account (Email Routing). */
+  EMAIL?: SendEmail;
 
   // vars (wrangler.jsonc [vars] — editable at deploy time)
   AUTH_URL: string;
@@ -19,6 +22,15 @@ export interface Env {
   PASSKEY_RP_ID?: string;
   /** Human-readable name shown in the passkey prompt. Empty = Better Auth's default. */
   PASSKEY_RP_NAME?: string;
+  /** "false" disables email+password sign-in (leave passkey + email-code + social only). */
+  PASSWORD_LOGIN?: string;
+  /** Sender address for sign-in code emails, e.g. "login@yourdomain.com" (must be on a
+   *  zone with Email Routing when using the EMAIL binding). Required for email OTP. */
+  EMAIL_FROM?: string;
+
+  // secrets (optional)
+  /** Resend API key — email OTP to ANY recipient (otherwise the EMAIL binding is used). */
+  RESEND_API_KEY?: string;
 
   // secrets (prompted by the deploy UI via .dev.vars.example)
   BETTER_AUTH_SECRET: string;

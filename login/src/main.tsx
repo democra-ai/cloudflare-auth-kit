@@ -9,7 +9,13 @@ import type { SocialProvider } from "better-auth/social-providers";
 
 // The Worker tells us which social providers have credentials configured and
 // whether public password sign-up is open, so the UI always matches the server.
-type Health = { providers?: Record<string, boolean>; signup?: boolean; passkey?: boolean };
+type Health = {
+  providers?: Record<string, boolean>;
+  signup?: boolean;
+  passkey?: boolean;
+  password?: boolean;
+  emailOTP?: boolean;
+};
 const health = await fetch("/providers")
   .then((r) => r.json() as Promise<Health>)
   .catch(() => ({}) as Health);
@@ -106,7 +112,8 @@ function App() {
       social={providers.length ? { providers } : undefined}
       signUp={signUpOpen}
       passkey={health.passkey === true}
-      credentials={{ forgotPassword: false }}
+      emailOTP={health.emailOTP === true}
+      credentials={health.password === false ? false : { forgotPassword: false }}
       redirectTo={redirectTo}
     >
       <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-4 md:p-6">

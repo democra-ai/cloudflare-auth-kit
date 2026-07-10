@@ -52,6 +52,18 @@
     // Set PASSKEY_RP_ID to a parent domain (e.g. "example.com") only if one passkey should
     // work across several subdomains — decide before the first passkey is registered.
     "PASSKEY_RP_ID": "",
-    "PASSKEY_RP_NAME": ""
+    "PASSKEY_RP_NAME": "",
+    // "false" removes email+password sign-in from the login page and the API — users sign
+    // in with passkeys, email codes, or social providers instead.
+    "PASSWORD_LOGIN": "",
+    // Sender for email sign-in codes (email OTP turns on when EMAIL_FROM is set AND either
+    // RESEND_API_KEY (any recipient) or the send_email binding below is configured).
+    "EMAIL_FROM": ""
   }
+
+  // Email-code (OTP) sign-in via Cloudflare Email Routing — free, but delivers ONLY to
+  // destination addresses verified on your account (good for admin logins). For codes to
+  // arbitrary end users set the RESEND_API_KEY secret instead. To use, add a comma above
+  // and uncomment:
+  // "send_email": [{ "name": "EMAIL" }]
 }

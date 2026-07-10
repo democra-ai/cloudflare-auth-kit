@@ -4,8 +4,10 @@ import { username } from "better-auth/plugins";
 import { admin } from "better-auth/plugins";
 import { organization } from "better-auth/plugins";
 import { passkey } from "@better-auth/passkey";
+import { emailOTP } from "better-auth/plugins";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./db/schema";
+import { emailReady, sendEmail } from "./email";
 import type { Env } from "./types";
 
 /**
@@ -47,12 +49,34 @@ export function createAuth(env: Env, requestOrigin?: string) {
     secret: env.BETTER_AUTH_SECRET,
     ...(baseURL ? { baseURL } : {}),
     trustedOrigins,
-    emailAndPassword: { enabled: true, disableSignUp: env.ALLOW_SIGNUP !== "true" },
+    emailAndPassword: {
+      enabled: env.PASSWORD_LOGIN !== "false",
+      disableSignUp: env.ALLOW_SIGNUP !== "true",
+    },
     ...(Object.keys(socialProviders).length ? { socialProviders } : {}),
     plugins: [
       username(),
       admin(),
       organization(),
+      // Email-code (OTP) sign-in — on when an email backend is configured (see email.ts).
+      ...(emailReady(env)
+        ? [
+            emailOTP({
+              otpLength: 6,
+              expiresIn: 600,
+              storeOTP: "hashed",
+              disableSignUp: env.ALLOW_SIGNUP !== "true",
+              async sendVerificationOTP({ email, otp }) {
+                const r = await sendEmail(env, {
+                  to: email,
+                  subject: `${(env.PASSKEY_RP_NAME ?? "").trim() || "Your account"}: sign-in code ${otp}`,
+                  text: `Your sign-in code is: ${otp}\n\nIt expires in 10 minutes. If you didn't request it, ignore this email.`,
+                });
+                if (!r.ok) throw new Error(r.error);
+              },
+            }),
+          ]
+        : []),
       // WebAuthn passkeys. Zero-config: rpID defaults to the baseURL hostname and the
       // expected origin to the request's Origin header. Set PASSKEY_RP_ID to a parent
       // domain (e.g. "example.com") to let one passkey work across subdomains — decide

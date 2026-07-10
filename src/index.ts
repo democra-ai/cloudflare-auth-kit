@@ -2,6 +2,7 @@ import { betterAuthStudio } from "better-auth-studio/cloudflare-workers";
 import { createAuth, isAdmin } from "./auth";
 import { createStudioApiHandler } from "./studio-api";
 import { INIT_SQL, PASSKEY_SQL } from "./db/init-sql";
+import { emailReady } from "./email";
 import type { Env } from "./types";
 
 const studioApi = createStudioApiHandler();
@@ -79,6 +80,8 @@ export default {
           },
           signup: env.ALLOW_SIGNUP === "true",
           passkey: true,
+          password: env.PASSWORD_LOGIN !== "false",
+          emailOTP: emailReady(env),
           callbackBase: `${(env.AUTH_URL ?? "").trim() || url.origin}/api/auth/callback`,
         }),
         { headers: { "Content-Type": "application/json" } },

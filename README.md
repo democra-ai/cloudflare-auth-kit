@@ -22,7 +22,7 @@ Everything is one Worker. No servers, no external database, no third-party auth 
 
 | | |
 |---|---|
-| **Sign-in methods** | Email + password, **passkeys (WebAuthn)**, Google, Apple, GitHub, Microsoft (each social provider turns on automatically once you provide its client id + secret) |
+| **Sign-in methods** | Email + password, **email codes (OTP)**, **passkeys (WebAuthn)**, Google, Apple, GitHub, Microsoft (each social provider turns on automatically once you provide its client id + secret) |
 | **Data** | Users, accounts, sessions, organizations & members — in your own Cloudflare D1 database |
 | **Sessions** | Stored in Cloudflare KV; optional cross-subdomain SSO cookie |
 | **Admin UI** | Better Auth Studio at the Worker root, gated to admins only |
@@ -126,6 +126,17 @@ Passkeys (WebAuthn) work **out of the box** — no configuration, no extra servi
 3. Next time, click **Sign in with Passkey** instead of typing a password.
 
 By default a passkey is bound to the exact hostname. If you run several subdomains against one user base and want a single passkey to work on all of them, set `PASSKEY_RP_ID` to the parent domain (e.g. `example.com`) **before anyone registers a passkey** — the relying-party id is baked into each credential and can't be changed later. `PASSKEY_RP_NAME` sets the display name in the passkey prompt.
+
+---
+
+## Email-code sign-in (OTP) & going passwordless
+
+Prefer codes over passwords? Configure an email backend and the login page grows a **Send code** flow (6-digit code, 10-minute expiry, stored hashed, rate-limited):
+
+- **Resend** (any recipient): set the `RESEND_API_KEY` secret and the `EMAIL_FROM` var.
+- **Cloudflare Email Routing** (free; delivers only to destination addresses verified on your account — ideal for admin sign-in): uncomment the `send_email` binding in `wrangler.jsonc` and set `EMAIL_FROM` to an address on your zone.
+
+To go **fully passwordless**, set `PASSWORD_LOGIN = false` — the password form disappears and the API rejects password sign-ins; users authenticate with email codes, passkeys, or social login. (Do this after you can receive codes or have registered a passkey, or you'll lock yourself out.)
 
 ---
 
