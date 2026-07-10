@@ -21,10 +21,21 @@ export function emailReady(env: Env): boolean {
 
 export async function sendEmail(
   env: Env,
-  args: { to: string; subject: string; text: string },
+  args: {
+    to: string;
+    subject: string;
+    text: string;
+    /** Sender address override. Defaults to EMAIL_FROM. Must be on a verified Email Routing zone. */
+    from?: string;
+    /** Display name, e.g. "CiteTrack" → From: CiteTrack <citetrack@democra.ai>. */
+    fromName?: string;
+    /** Optional HTML body (added as a second MIME part / Resend `html` field). */
+    html?: string;
+  },
 ): Promise<SendResult> {
   const to = args.to.trim();
-  const from = (env.EMAIL_FROM ?? "").trim();
+  const from = (args.from ?? env.EMAIL_FROM ?? "").trim();
+  const fromName = (args.fromName ?? "").trim();
   if (!EMAIL_RE.test(to)) return { ok: false, error: "invalid recipient" };
   if (!EMAIL_RE.test(from)) return { ok: false, error: "invalid sender (EMAIL_FROM)" };
 
@@ -32,7 +43,13 @@ export async function sendEmail(
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject: args.subject, text: args.text }),
+      body: JSON.stringify({
+        from: fromName ? `${fromName} <${from}>` : from,
+        to,
+        subject: args.subject,
+        text: args.text,
+        ...(args.html ? { html: args.html } : {}),
+      }),
     });
     if (!res.ok) return { ok: false, error: `resend: ${res.status} ${await res.text()}` };
     return { ok: true, via: "resend" };
@@ -40,10 +57,12 @@ export async function sendEmail(
 
   if (!env.EMAIL) return { ok: false, error: "no email backend (set RESEND_API_KEY or bind send_email)" };
   const msg = createMimeMessage();
-  msg.setSender({ addr: from });
+  // Display name rides in the MIME From header; the envelope MAIL FROM stays the bare address.
+  msg.setSender(fromName ? { name: fromName, addr: from } : { addr: from });
   msg.setRecipient(to);
   msg.setSubject(args.subject);
   msg.addMessage({ contentType: "text/plain", data: args.text });
+  if (args.html) msg.addMessage({ contentType: "text/html", data: args.html });
   try {
     await env.EMAIL.send(new EmailMessage(from, to, msg.asRaw()));
     return { ok: true, via: "email_routing" };

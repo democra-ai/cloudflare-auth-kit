@@ -22,6 +22,10 @@ export interface AppDef {
   kv?: string;
   /** Name of the env var holding this app's signing secret. Default "BETTER_AUTH_SECRET". */
   secret?: string;
+  /** From-address for this app's sign-in code emails. Default `<slug>@<zone>` ("login@<zone>" for the default app). */
+  emailFrom?: string;
+  /** Display name on those emails. Default the app's `name`. */
+  emailName?: string;
 }
 
 export interface ResolvedApp {
@@ -34,6 +38,10 @@ export interface ResolvedApp {
   authBasePath: string;
   /** Cookie name prefix. MUST differ per app: cookies are isolated by NAME, not by path. */
   cookiePrefix: string;
+  /** Sender address for this app's sign-in code emails, e.g. "citetrack@democra.ai". */
+  emailFrom: string;
+  /** Display name shown on this app's sign-in code emails, e.g. "CiteTrack". */
+  emailName: string;
   isDefault: boolean;
 }
 
@@ -106,6 +114,14 @@ export function resolveApp(env: Env, slug: string): ResolvedApp {
   if (!secret || secret.length < 32) throw new Error(`app "${slug}": missing or too-short secret "${secretName}"`);
 
   const isDefault = def.slug === DEFAULT_SLUG;
+  // Per-product sender. Every product's sign-in code comes from its own local-part on the
+  // verified zone (Email Routing verifies senders at the DOMAIN level, so any `<x>@<zone>`
+  // works with no extra config), so a recipient can tell which product a code is for.
+  const zone = ((env.EMAIL_FROM ?? "login@democra.ai").split("@")[1] || "democra.ai").trim();
+  const emailFrom =
+    def.emailFrom?.trim() ||
+    (isDefault ? (env.EMAIL_FROM ?? "").trim() || `login@${zone}` : `${def.slug}@${zone}`);
+  const emailName = def.emailName?.trim() || def.name?.trim() || (isDefault ? "Democra AI" : def.slug);
   return {
     slug: def.slug,
     name: def.name?.trim() || def.slug,
@@ -117,6 +133,8 @@ export function resolveApp(env: Env, slug: string): ResolvedApp {
     // so every app gets its own prefix. Combined with a per-app secret, an app can neither
     // read nor forge another app's session cookie.
     cookiePrefix: isDefault ? "better-auth" : `ba-${def.slug}`,
+    emailFrom,
+    emailName,
     isDefault,
   };
 }

@@ -29,6 +29,10 @@ export interface AppAuth {
   /** e.g. "/citetrack/api/auth" — Better Auth's router strips this itself, no URL rewrite. */
   authBasePath: string;
   cookiePrefix: string;
+  /** From-address for this app's sign-in code emails, e.g. "citetrack@democra.ai". */
+  emailFrom?: string;
+  /** Display name on this app's sign-in code emails, e.g. "CiteTrack". */
+  emailName?: string;
 }
 
 /**
@@ -58,6 +62,11 @@ export function createAuth(env: Env, requestOrigin?: string, app?: AppAuth) {
   const d1 = app?.db ?? env.DB;
   const kv = app?.kv ?? env.KV;
   const db = drizzle(d1, { schema });
+
+  // Per-product sign-in code sender. A tenant sends from its own address + name; the
+  // control-plane instance falls back to PASSKEY_RP_NAME (or "Democra AI") + EMAIL_FROM.
+  const emailFrom = (app?.emailFrom ?? env.EMAIL_FROM ?? "").trim();
+  const emailName = (app?.emailName ?? ((env.PASSKEY_RP_NAME ?? "").trim() || "Democra AI")).trim();
 
   // Zero-config base URL: use AUTH_URL if set, otherwise fall back to the origin the
   // request actually arrived on. This makes the one-click deploy work on the auto-assigned
@@ -89,6 +98,9 @@ export function createAuth(env: Env, requestOrigin?: string, app?: AppAuth) {
     ...(baseURL ? { baseURL } : {}),
     ...(app ? { basePath: app.authBasePath } : {}),
     trustedOrigins,
+    // Mirror sessions into D1 (not just KV) so the admin dashboard can list logins/active
+    // sessions — KV has no queryable index, D1 does. Adds one D1 write per session.
+    session: { storeSessionInDatabase: true },
     emailAndPassword: {
       enabled: env.PASSWORD_LOGIN !== "false",
       disableSignUp: env.ALLOW_SIGNUP !== "true",
@@ -112,8 +124,10 @@ export function createAuth(env: Env, requestOrigin?: string, app?: AppAuth) {
               async sendVerificationOTP({ email, otp }) {
                 const r = await sendEmail(env, {
                   to: email,
-                  subject: `${(env.PASSKEY_RP_NAME ?? "").trim() || "Your account"}: sign-in code ${otp}`,
-                  text: `Your sign-in code is: ${otp}\n\nIt expires in 10 minutes. If you didn't request it, ignore this email.`,
+                  from: emailFrom,
+                  fromName: emailName,
+                  subject: `${emailName}: sign-in code ${otp}`,
+                  text: `Your ${emailName} sign-in code is: ${otp}\n\nIt expires in 10 minutes. If you didn't request it, ignore this email.`,
                 });
                 if (!r.ok) throw new Error(r.error);
               },

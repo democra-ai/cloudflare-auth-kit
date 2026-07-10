@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/d1";
 import { eq, desc, or, like, count as sqlCount } from "drizzle-orm";
 import * as schema from "./db/schema";
+import { sendEmail } from "./email";
 import type { Auth } from "./auth";
 import type { ResolvedApp } from "./apps";
 import type { Env } from "./types";
@@ -41,9 +42,48 @@ const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
 const num = (v: string | null, d: number) => {
+  // Absent/blank → default. (Number(null) is 0, so a missing ?limit must NOT fall through.)
+  if (v === null || v.trim() === "") return d;
   const n = Number(v);
   return Number.isFinite(n) ? n : d;
 };
+
+/** Crude HTML→text for the Send-Test-Email fallback body (the modal posts HTML). */
+const htmlToText = (html: string) =>
+  html
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+/** Milliseconds spanned by a Studio period string ("24h" | "7d" | "30d"). Default 7d. */
+const periodMs = (period: string): number => {
+  if (period === "24h" || period === "1d") return 86400000;
+  if (period === "30d") return 30 * 86400000;
+  return 7 * 86400000;
+};
+
+/**
+ * Epoch ms from a D1 timestamp column, whatever shape drizzle hands back. In this build the
+ * same `created_at` column comes back as a Date for a single-column projection but as a
+ * NUMERIC STRING ("1783697129074") for a multi-column one — `new Date(str)` on which is
+ * Invalid Date. Normalise all cases so window filters don't silently drop every row.
+ */
+const toMs = (v: unknown): number => {
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : Date.parse(v);
+  }
+  return NaN;
+};
+const dayOf = (v: unknown) => new Date(toMs(v)).toISOString().slice(0, 10);
 
 async function body<T = Record<string, unknown>>(req: Request): Promise<T> {
   try {
@@ -120,12 +160,63 @@ export function createStudioApiHandler(): Handler {
     if (path === "/api/plugins/teams/status") return json({ enabled: false });
     if (path === "/api/plugins/organization/status") return json({ enabled: true });
     if (path === "/api/admin/status") return json({ enabled: true, adminEmails });
-    if (path === "/api/events/status") return json({ enabled: false });
-    if (path === "/api/events") return json({ success: true, events: [], total: 0 });
-    if (path === "/api/events/count") return json({ count: 0 });
+    // Activity = sign-ins. Sessions are now mirrored into D1 (auth.ts storeSessionInDatabase),
+    // so each session row is a real login event — that is what these panels read.
+    if (path === "/api/events/status") return json({ enabled: true });
+    if (path === "/api/events") {
+      const period = url.searchParams.get("period") ?? "";
+      const hours = url.searchParams.get("hours");
+      const spanMs = period ? periodMs(period) : hours ? num(hours, 168) * 3600000 : 7 * 86400000;
+      const sinceMs = Date.now() - spanMs;
+      const limit = num(url.searchParams.get("limit"), 50);
+      // Recent sessions = the login events; stitch in the user via a map (separate selects,
+      // matching /api/stats). createdAt is normalised with toMs (drizzle hands it back as a
+      // Date or a numeric string depending on the projection).
+      const sessRows = await db
+        .select({
+          id: schema.session.id,
+          userId: schema.session.userId,
+          createdAt: schema.session.createdAt,
+          ipAddress: schema.session.ipAddress,
+          userAgent: schema.session.userAgent,
+        })
+        .from(schema.session)
+        .orderBy(desc(schema.session.createdAt))
+        .limit(500);
+      const recent = sessRows.filter((r) => toMs(r.createdAt) >= sinceMs).slice(0, limit);
+      const users = await db.select({ id: schema.user.id, email: schema.user.email, name: schema.user.name }).from(schema.user);
+      const uMap = new Map(users.map((u) => [u.id, u]));
+      const events = recent.map((r) => {
+        const u = uMap.get(r.userId);
+        return {
+          id: r.id,
+          type: "session.created",
+          name: "Sign-in",
+          userId: r.userId,
+          user: { id: r.userId, email: u?.email ?? null, name: u?.name ?? null },
+          email: u?.email ?? null,
+          ipAddress: r.ipAddress,
+          userAgent: r.userAgent,
+          createdAt: r.createdAt,
+          timestamp: r.createdAt,
+        };
+      });
+      return json({ success: true, ready: true, events, total: events.length });
+    }
+    if (path === "/api/events/count") {
+      const period = url.searchParams.get("period") ?? "";
+      const spanMs = period ? periodMs(period) : 7 * 86400000;
+      const sinceMs = Date.now() - spanMs;
+      const stamps = await db.select({ createdAt: schema.session.createdAt }).from(schema.session);
+      const c = stamps.filter((r) => toMs(r.createdAt) >= sinceMs).length;
+      return json({ count: c, total: c });
+    }
     if (path === "/api/geo/resolve") return json({ success: true, location: null });
     if (path === "/api/dashboard/invitations") return json({ invitations: [] });
-    if (path === "/api/dashboard/geo-distribution") return json({ countries: [] });
+    // No geo store (sessions record IP, not country), so report an honest — but correctly
+    // shaped — empty distribution: {distribution, totalUnique}, NOT {countries}.
+    if (path === "/api/dashboard/geo-distribution") return json({ distribution: [], totalUnique: 0 });
+    if (path === "/api/dashboard/geo-country-details") return json({ users: [], sessions: [], totalSessions: 0 });
 
     // ── tools ──────────────────────────────────────────────────────────────
     // OAuth status: which providers this app can use, and the exact redirect URI to register.
@@ -230,7 +321,8 @@ export function createStudioApiHandler(): Handler {
         db.select({ c: sqlCount() }).from(schema.organization),
         db.select({ c: sqlCount() }).from(schema.member),
       ]);
-      return json({ users: u[0].c, sessions: s[0].c, organizations: o[0].c, teams: 0, members: m[0].c, events: 0 });
+      // "events" = login events; each session row is one sign-in (sessions now live in D1 too).
+      return json({ users: u[0].c, sessions: s[0].c, organizations: o[0].c, teams: 0, members: m[0].c, events: s[0].c });
     }
 
     if (path === "/api/stats") {
@@ -255,21 +347,69 @@ export function createStudioApiHandler(): Handler {
     if (path === "/api/analytics") {
       const period = url.searchParams.get("period") ?? "7d";
       const days = period === "30d" ? 30 : period === "24h" ? 1 : 7;
-      const users = await db.select({ createdAt: schema.user.createdAt }).from(schema.user);
+      const type = url.searchParams.get("type") ?? "signups";
+      // "logins" plots sign-ins (session.createdAt); anything else plots signups (user.createdAt).
+      const stamps = (
+        type === "logins"
+          ? await db.select({ createdAt: schema.session.createdAt }).from(schema.session)
+          : await db.select({ createdAt: schema.user.createdAt }).from(schema.user)
+      ).map((r) => toMs(r.createdAt));
       const labels: string[] = [];
       const data: number[] = [];
       for (let i = days - 1; i >= 0; i--) {
-        const day = new Date(Date.now() - i * 86400000);
-        const key = day.toISOString().slice(0, 10);
+        const key = dayOf(Date.now() - i * 86400000);
         labels.push(key);
-        data.push(users.filter((u) => String(new Date(u.createdAt as unknown as string).toISOString().slice(0, 10)) === key).length);
+        data.push(stamps.filter((t) => dayOf(t) === key).length);
       }
-      return json({ type: url.searchParams.get("type") ?? "signups", period, labels, data, percentageChange: 0 });
+      // Real momentum: this period's total vs the previous same-length window.
+      const spanMs = days * 86400000;
+      const now = Date.now();
+      const thisPeriod = stamps.filter((t) => t > now - spanMs).length;
+      const prevPeriod = stamps.filter((t) => t > now - 2 * spanMs && t <= now - spanMs).length;
+      const percentageChange = prevPeriod === 0 ? (thisPeriod > 0 ? 100 : 0) : Math.round(((thisPeriod - prevPeriod) / prevPeriod) * 100);
+      return json({ type, period, labels, data, percentageChange });
     }
 
     if (path === "/api/database/schema") {
-      const tables = ["user", "session", "account", "verification", "organization", "member", "invitation", "passkey"];
-      return json({ success: true, tables: tables.map((name) => ({ name })) });
+      // Real schema from the live D1: the tables that actually exist, their columns, and row
+      // counts — the frontend reads {summary:{...counts}, schema:{tables:[{name,columns}]}}.
+      const CORE = new Set(["user", "session", "account", "verification"]);
+      const listed = await app.db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'd1_%' ORDER BY name")
+        .all();
+      const names = (listed.results ?? []).map((r) => (r as { name: string }).name);
+      let fieldCount = 0;
+      const tables = [];
+      for (const name of names) {
+        // `name` comes only from sqlite_master, never user input — safe to interpolate.
+        let columns: { name: string; type: string; notnull: boolean; pk: boolean }[] = [];
+        try {
+          const info = await app.db.prepare(`PRAGMA table_info("${name}")`).all();
+          columns = (info.results ?? []).map((c) => {
+            const col = c as { name: string; type: string; notnull: number; pk: number };
+            return { name: col.name, type: col.type, notnull: Boolean(col.notnull), pk: Boolean(col.pk) };
+          });
+        } catch {
+          /* view or unreadable table — report it with no columns rather than failing */
+        }
+        let rowCount = 0;
+        try {
+          rowCount = ((await app.db.prepare(`SELECT COUNT(*) AS c FROM "${name}"`).first()) as { c: number } | null)?.c ?? 0;
+        } catch {
+          /* ignore */
+        }
+        fieldCount += columns.length;
+        tables.push({ name, core: CORE.has(name), plugin: !CORE.has(name), columns, rowCount });
+      }
+      const summary = {
+        tableCount: tables.length,
+        coreTableCount: tables.filter((t) => t.core).length,
+        pluginTableCount: tables.filter((t) => !t.core).length,
+        fieldCount,
+        relationshipCount: 0,
+      };
+      // Keep the old flat `tables:[{name}]` too, for any consumer still reading that shape.
+      return json({ success: true, summary, schema: { tables }, tables: tables.map((t) => ({ name: t.name })) });
     }
 
     if (path === "/api/dashboard/recent-users") {
@@ -501,6 +641,42 @@ export function createStudioApiHandler(): Handler {
 
     // ── teams (not enabled in this kit) ──
     if (path === "/api/teams") return json({ teams: [] });
+
+    // ── Emails tab — wired to our real send path (Cloudflare Email Routing / Resend) ──
+    // The tab was cosmetic (every call 501'd); these three handlers connect it to the same
+    // sendEmail() the sign-in codes use. Senders are this app's own address(es) on the zone.
+    if (path === "/api/tools/check-resend-api-key" && method === "GET") {
+      const senders = [...new Set([app.emailFrom, env.EMAIL_FROM].map((s) => (s ?? "").trim()).filter(Boolean))];
+      // hasApiKey drives the UI's "sender is available" gate; true whenever ANY backend is
+      // configured (Resend key OR the Cloudflare Email Routing binding), so the From dropdown
+      // populates. Label still says "Resend"; delivery may actually go via Email Routing.
+      return json({ hasApiKey: Boolean(env.RESEND_API_KEY || env.EMAIL), verifiedSenders: senders });
+    }
+    if (path === "/api/tools/send-test-email" && method === "POST")
+      return guard(async () => {
+        const b = await body<{ to?: string; from?: string; subject?: string; html?: string; text?: string }>(req);
+        const to = (b.to ?? "").trim();
+        if (!to) return json({ success: false, message: "recipient (to) is required" }, 400);
+        const html = (b.html ?? "").trim();
+        const text = (b.text ?? "").trim() || (html ? htmlToText(html) : "This is a test email from the admin dashboard.");
+        const r = await sendEmail(env, {
+          to,
+          from: (b.from ?? "").trim() || app.emailFrom || env.EMAIL_FROM,
+          fromName: app.emailName,
+          subject: (b.subject ?? "").trim() || `${app.emailName}: test email`,
+          text,
+          ...(html ? { html } : {}),
+        });
+        if (!r.ok) return json({ success: false, message: r.error }, 400);
+        return json({ success: true, via: r.via, message: `Sent to ${to} via ${r.via}` });
+      });
+    // The upstream "apply template" patches auth.ts source at dev time — impossible on a
+    // deployed Worker. Report that honestly instead of 501'ing.
+    if (path === "/api/tools/apply-email-template" && method === "POST")
+      return json(
+        { success: false, message: "Email templates live in source (auth.ts) and are read-only on Workers — edit and redeploy." },
+        400,
+      );
 
     // unhandled → fall through (adapter will 501, or /api/auth/* falls to Better Auth)
     return null;

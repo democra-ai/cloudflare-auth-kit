@@ -169,6 +169,8 @@ export default {
           secret: tenant.secret,
           authBasePath: tenant.authBasePath,
           cookiePrefix: tenant.cookiePrefix,
+          emailFrom: tenant.emailFrom,
+          emailName: tenant.emailName,
         });
         const to = new URL(request.url);
         to.pathname = `${tenant.authBasePath}/callback/${cb[1]}`;
@@ -285,6 +287,8 @@ export default {
           secret: tenant.secret,
           authBasePath: tenant.authBasePath,
           cookiePrefix: tenant.cookiePrefix,
+          emailFrom: tenant.emailFrom,
+          emailName: tenant.emailName,
         });
         const origin = request.headers.get("origin");
         if (request.method === "OPTIONS") return withCors(new Response(null, { status: 204 }), origin, trusted);
@@ -318,8 +322,19 @@ export default {
 
     const STUDIO_TOOLS = {
       // Kept out: run-migration is destructive; the rest call endpoints we do not implement
-      // (they would render a card and then 501). Everything else now has a real handler.
-      exclude: ["run-migration", "test-oauth", "export-data", "password-strength", "token-generator", "plugin-generator"],
+      // (they would render a card and then 501). jwt-decoder + secret-generator are generic
+      // dev utilities unconnected to our systems and 501 today, so hide them too. Everything
+      // else visible now has a real handler.
+      exclude: [
+        "run-migration",
+        "test-oauth",
+        "export-data",
+        "password-strength",
+        "token-generator",
+        "plugin-generator",
+        "jwt-decoder",
+        "secret-generator",
+      ],
     };
 
     // ── 4a. SINGLE APP (the default): Studio at the root, exactly as before ───
@@ -361,6 +376,8 @@ export default {
       secret: app.secret,
       authBasePath: app.authBasePath,
       cookiePrefix: app.cookiePrefix,
+      emailFrom: app.emailFrom,
+      emailName: app.emailName,
     });
     const authBaseURL = `${(env.AUTH_URL ?? "").trim() || url.origin}${app.authBasePath}`;
 
