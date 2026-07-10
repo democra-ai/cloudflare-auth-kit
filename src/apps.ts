@@ -26,6 +26,12 @@ export interface AppDef {
   emailFrom?: string;
   /** Display name on those emails. Default the app's `name`. */
   emailName?: string;
+  /**
+   * Scope this tenant's session cookie to COOKIE_DOMAIN (e.g. ".democra.ai") instead of
+   * host-only. Needed when the product's OWN web origin must read the session
+   * (candy.democra.ai → candy-api.democra.ai). Still isolated by cookie name + secret.
+   */
+  crossSubDomain?: boolean;
 }
 
 export interface ResolvedApp {
@@ -42,6 +48,8 @@ export interface ResolvedApp {
   emailFrom: string;
   /** Display name shown on this app's sign-in code emails, e.g. "CiteTrack". */
   emailName: string;
+  /** Cookie domain for this tenant (COOKIE_DOMAIN if crossSubDomain, else "" = host-only). */
+  cookieDomain: string;
   isDefault: boolean;
 }
 
@@ -122,6 +130,9 @@ export function resolveApp(env: Env, slug: string): ResolvedApp {
     def.emailFrom?.trim() ||
     (isDefault ? (env.EMAIL_FROM ?? "").trim() || `login@${zone}` : `${def.slug}@${zone}`);
   const emailName = def.emailName?.trim() || def.name?.trim() || (isDefault ? "Democra AI" : def.slug);
+  // The default app is always zone-wide (SSO across the org). A tenant is host-only unless it
+  // opts in — a web product whose own origin reads the session needs the zone scope.
+  const cookieDomain = isDefault || def.crossSubDomain ? (env.COOKIE_DOMAIN ?? "").trim() : "";
   return {
     slug: def.slug,
     name: def.name?.trim() || def.slug,
@@ -135,6 +146,7 @@ export function resolveApp(env: Env, slug: string): ResolvedApp {
     cookiePrefix: isDefault ? "better-auth" : `ba-${def.slug}`,
     emailFrom,
     emailName,
+    cookieDomain,
     isDefault,
   };
 }

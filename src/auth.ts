@@ -33,6 +33,8 @@ export interface AppAuth {
   emailFrom?: string;
   /** Display name on this app's sign-in code emails, e.g. "CiteTrack". */
   emailName?: string;
+  /** Zone cookie domain (e.g. ".democra.ai") for a tenant whose own web origin reads the session; "" = host-only. */
+  cookieDomain?: string;
 }
 
 /**
@@ -89,8 +91,9 @@ export function createAuth(env: Env, requestOrigin?: string, app?: AppAuth) {
   const trustedOrigins = [baseURL, requestOrigin, ...(env.TRUSTED_ORIGINS ?? "").split(",")]
     .map((o) => (o ?? "").trim())
     .filter(Boolean);
-  // Tenants get host-only cookies: a .democra.ai domain cookie would blanket every app path.
-  const cookieDomain = app ? "" : (env.COOKIE_DOMAIN ?? "").trim();
+  // Tenants are host-only by default; one may opt into a zone-wide cookie (app.cookieDomain)
+  // when its own web origin must read the session. Isolation is by cookie NAME + secret.
+  const cookieDomain = app ? (app.cookieDomain ?? "").trim() : (env.COOKIE_DOMAIN ?? "").trim();
 
   return betterAuth({
     database: drizzleAdapter(db, { provider: "sqlite", schema }),

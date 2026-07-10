@@ -171,6 +171,7 @@ export default {
           cookiePrefix: tenant.cookiePrefix,
           emailFrom: tenant.emailFrom,
           emailName: tenant.emailName,
+          cookieDomain: tenant.cookieDomain,
         });
         const to = new URL(request.url);
         to.pathname = `${tenant.authBasePath}/callback/${cb[1]}`;
@@ -289,6 +290,7 @@ export default {
           cookiePrefix: tenant.cookiePrefix,
           emailFrom: tenant.emailFrom,
           emailName: tenant.emailName,
+          cookieDomain: tenant.cookieDomain,
         });
         const origin = request.headers.get("origin");
         if (request.method === "OPTIONS") return withCors(new Response(null, { status: 204 }), origin, trusted);
@@ -378,6 +380,7 @@ export default {
       cookiePrefix: app.cookiePrefix,
       emailFrom: app.emailFrom,
       emailName: app.emailName,
+      cookieDomain: app.cookieDomain,
     });
     const authBaseURL = `${(env.AUTH_URL ?? "").trim() || url.origin}${app.authBasePath}`;
 
