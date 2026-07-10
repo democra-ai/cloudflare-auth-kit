@@ -34,13 +34,30 @@ async function ensureSchema(env: Env): Promise<void> {
 }
 
 /** Static files the Studio shell needs; always public (JS/CSS/images are not sensitive). */
-const STATIC_FILES = new Set(["/favicon.svg", "/favicon.ico", "/logo.png", "/shaders.png", "/vite.svg", "/studio-i18n.js"]);
+const STATIC_FILES = new Set([
+  "/favicon.svg",
+  "/favicon.ico",
+  "/logo.png",
+  "/shaders.png",
+  "/vite.svg",
+  "/studio-i18n.js",
+  "/studio-theme.css",
+]);
 const isStatic = (p: string) => p.startsWith("/assets/") || STATIC_FILES.has(p);
 
-/** Inject the Simplified-Chinese overlay into a Studio HTML response (no fork of the Studio bundle). */
-function withStudioI18n(res: Response): Response {
+/**
+ * Brand the Studio HTML without forking its bundle: a Cloudflare-orange stylesheet appended
+ * to <head> (so it overrides the Studio's own theme variables) and the Chinese DOM overlay
+ * appended to <body>.
+ */
+function withStudioBranding(res: Response): Response {
   if (!(res.headers.get("content-type") ?? "").includes("text/html")) return res;
   return new HTMLRewriter()
+    .on("head", {
+      element(el) {
+        el.append('<link rel="stylesheet" href="/studio-theme.css">', { html: true });
+      },
+    })
     .on("body", {
       element(el) {
         el.append('<script src="/studio-i18n.js" defer></script>', { html: true });
@@ -135,6 +152,6 @@ export default {
       lastSeenAt: { enabled: false },
       tools: { exclude: ["run-migration", "test-db", "validate-config", "oauth-credentials"] },
     });
-    return withStudioI18n(await studio(request, env, ctx));
+    return withStudioBranding(await studio(request, env, ctx));
   },
 } satisfies ExportedHandler<Env>;

@@ -147,6 +147,10 @@ Both the login pages and the admin dashboard ship **English and Simplified Chine
 - The login pages use better-auth-ui's built-in `localization` — proper i18n.
 - The Studio dashboard has no upstream i18n, so the kit injects a small DOM-translation overlay (`i18n/studio-overlay.js`, served at `/studio-i18n.js`). Edit that file's dictionary to adjust wording or add another language; untranslated strings simply stay English.
 
+## Theme
+
+Everything is themed in **Cloudflare's classic orange (`#F6821F`)** — the login pages via Tailwind CSS variables, and the Studio dashboard via `theme/studio-cloudflare.css`, injected after Studio's own stylesheet so it re-points the accent chain (`--primary`, `--ring`, `--accent`, `--chart-*`) plus the chart bars, active nav tab, and primary buttons. It applies in **both light and dark mode**. Buttons use near-black ink on orange (7.66:1); white on this orange fails contrast.
+
 ---
 
 ## Connect your app

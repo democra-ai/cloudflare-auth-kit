@@ -52,3 +52,11 @@ try {
 } catch {
   console.warn("[build-assets] i18n/studio-overlay.js missing — Studio stays English-only");
 }
+
+// The Cloudflare-orange theme override for the Studio UI (served at /studio-theme.css).
+try {
+  await cp(new URL("../theme/studio-cloudflare.css", import.meta.url).pathname, join(dest, "studio-theme.css"));
+  console.log("[build-assets] copied studio-theme.css into ./public");
+} catch {
+  console.warn("[build-assets] theme/studio-cloudflare.css missing — Studio keeps its stock colors");
+}

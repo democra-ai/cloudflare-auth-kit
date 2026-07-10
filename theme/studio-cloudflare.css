@@ -1,0 +1,84 @@
+/*
+ * Cloudflare classic orange (#F6821F) for Better Auth Studio — in BOTH light and dark.
+ *
+ * Studio ships shadcn-style HSL triplet variables in three blocks (:root = dark default,
+ * .light, .dark) consumed as hsl(var(--primary)). We can't fork the bundle, so this file
+ * is injected after the Studio stylesheet and re-points the whole accent chain.
+ *
+ * Selectors use `html.light` / `html.dark` (specificity 0,1,1) so they beat Studio's own
+ * `.light` / `.dark` (0,1,0) regardless of source order. Studio sets both the class and
+ * data-theme on <html>, so either hook matches.
+ *
+ * #F6821F  = hsl(28 92% 54%)   — Cloudflare's own --color-cl1-brand-orange
+ * Ink on orange is near-black: 7.66:1. White on this orange is 2.58:1 and fails, so
+ * --primary-foreground stays dark in both themes (Cloudflare's own button pattern).
+ */
+
+/* accent chain — identical in both themes */
+:root,
+html.light,
+html[data-theme="light"],
+html.dark,
+html[data-theme="dark"] {
+  --primary: 28 92% 54%;
+  --primary-foreground: 0 0% 10%;
+  --ring: 28 92% 54%;
+
+  /* charts: the Cloudflare orange family (logo orange + secondary + deep amber) */
+  --chart-1: 28 92% 54%;
+  --chart-2: 35 95% 61%;
+  --chart-3: 28 92% 39%;
+  --chart-4: 28 60% 70%;
+  --chart-5: 25 30% 45%;
+}
+
+/* dark: deep amber hover surfaces (cl1-orange-1 #482303 with cl1-orange-8 ink) */
+:root,
+html.dark,
+html[data-theme="dark"] {
+  --accent: 28 92% 15%;
+  --accent-foreground: 28 91% 82%;
+}
+
+/* light: warm cream hover surfaces (cl1-orange-9 #FEF1E6 with cl1-orange-0 ink) */
+html.light,
+html[data-theme="light"] {
+  --accent: 27 92% 95%;
+  --accent-foreground: 28 93% 11%;
+}
+
+/* ── data ink ──────────────────────────────────────────────────────────────────
+ * Studio paints chart marks with white-alpha (dark) / black-alpha (light) inline
+ * styles rather than theme variables, so these need targeted !important rules.
+ */
+
+/* Users bar chart: the SVG gradient (kept in sync) and the div that actually paints. */
+#usersBarGradient stop:first-child {
+  stop-color: hsl(28 92% 54%) !important;
+}
+#usersBarGradient stop:last-child {
+  stop-color: hsl(30 95% 82%) !important;
+}
+[style*="usersBarGradient"] > div {
+  background: linear-gradient(hsl(28 92% 56%), hsl(30 95% 74%)) !important;
+  opacity: 1 !important;
+}
+
+/* Active nav tab underline (inactive tabs carry .border-transparent). */
+a.border-b-2:not(.border-transparent) {
+  border-bottom-color: hsl(28 92% 54%) !important;
+}
+
+/* Primary CTAs (Add User, Create Organization, …). Studio hardcodes them as
+   `bg-white text-black` in BOTH themes rather than using --primary, so match that
+   pair directly. Secondary buttons are dashed/transparent and stay neutral. */
+button.bg-white.text-black,
+a.bg-white.text-black {
+  background-color: hsl(28 92% 54%) !important;
+  color: hsl(0 0% 10%) !important;
+  border-color: hsl(28 92% 44%) !important;
+}
+button.bg-white.text-black:hover,
+a.bg-white.text-black:hover {
+  background-color: hsl(28 92% 48%) !important;
+}
