@@ -1,0 +1,15 @@
+# These become prompts in the Deploy to Cloudflare UI (dotenv format).
+# Required:
+BETTER_AUTH_SECRET=""       # 32+ random chars — signs sessions. Generate: openssl rand -base64 33
+
+# Optional social login — a provider turns on the moment its pair is set.
+# Redirect URI to register with each provider: <AUTH_URL>/api/auth/callback/<provider>
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+GITHUB_CLIENT_ID=""
+GITHUB_CLIENT_SECRET=""
+APPLE_CLIENT_ID=""
+APPLE_CLIENT_SECRET=""
+APPLE_APP_BUNDLE_IDENTIFIER=""
+MICROSOFT_CLIENT_ID=""
+MICROSOFT_CLIENT_SECRET=""

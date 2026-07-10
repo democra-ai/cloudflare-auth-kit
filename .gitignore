@@ -1,0 +1,11 @@
+node_modules/
+.wrangler/
+.dev.vars
+dist/
+# built Studio assets (copied from the better-auth-studio package at build time)
+public/index.html
+public/assets/
+public/favicon.svg
+public/logo.png
+public/shaders.png
+public/vite.svg

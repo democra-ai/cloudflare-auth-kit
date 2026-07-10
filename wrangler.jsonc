@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cloudflare-auth-kit",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // The Studio shell + the login page are served from here (built by `npm run build`).
+  // html_handling:"none" is REQUIRED: the Studio adapter fetches "/index.html" from this
+  // binding, and the default html_handling would 307-redirect it to "/" (which the adapter
+  // treats as "assets not found"). "none" serves the file directly. We resolve /login →
+  // /login.html ourselves in the Worker.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+
+  // The "Deploy to Cloudflare" button auto-provisions these and rewrites the ids for you.
+  // For local `wrangler dev` the ids are ignored (a local SQLite/KV is used); to deploy by
+  // hand, run `npm run db:create` and paste the printed ids here.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "auth-kit-db", "database_id": "REPLACE_WITH_YOUR_D1_ID" }
+  ],
+  "kv_namespaces": [
+    { "binding": "KV", "id": "REPLACE_WITH_YOUR_KV_ID" }
+  ],
+
+  "vars": {
+    // Leave AUTH_URL empty to auto-detect the request origin (works out of the box on the
+    // *.workers.dev URL and any custom domain). Set it only if you want to pin one canonical
+    // origin, e.g. "https://auth.yourdomain.com".
+    "AUTH_URL": "",
+    // Set to a parent domain like ".yourdomain.com" to share the login session across
+    // subdomains (SSO). Empty = host-only cookie.
+    "COOKIE_DOMAIN": "",
+    // Extra origins (comma-separated) allowed to call the auth API with credentials — your
+    // app's front-end domains if they differ from this Worker's origin.
+    "TRUSTED_ORIGINS": "",
+    // Comma-separated emails allowed into the admin dashboard (plus any user with role=admin).
+    "ADMIN_EMAILS": ""
+  }
+}

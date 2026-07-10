@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sign in</title>
+<style>
+  :root{--bg:#f7f7f6;--panel:#fff;--fg:#1a1a19;--muted:#71716d;--line:#e6e6e2;--accent:#f26f21;--code:#f2f2ef}
+  @media (prefers-color-scheme:dark){:root{--bg:#141416;--panel:#1c1c1f;--fg:#ececeb;--muted:#9a9a9e;--line:#2c2c30;--accent:#f8873c;--code:#24242a}}
+  *{box-sizing:border-box} html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--fg);font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;display:grid;place-items:center;padding:24px}
+  .card{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:34px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px rgba(0,0,0,.06)}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:22px}
+  .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#ffab6b);display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px}
+  h1{font-size:19px;margin:0;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+  button{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 14px;margin-bottom:10px;
+    border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);font:inherit;font-weight:500;cursor:pointer}
+  button:hover:not(:disabled){border-color:var(--accent)}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button svg{width:18px;height:18px;flex:none}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .sep{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px;margin:18px 0}
+  .sep::before,.sep::after{content:"";flex:1;height:1px;background:var(--line)}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}
+  input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg);font:inherit;margin-bottom:10px}
+  input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+  .note{color:var(--muted);font-size:12px;margin-top:16px;text-align:center}
+  .err{color:#c0342b;font-size:13px;min-height:18px;margin-top:8px;text-align:center}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:12.5px;overflow-x:auto;margin-top:18px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .who{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);margin-bottom:16px}
+  .who img{width:42px;height:42px;border-radius:50%}
+  .who .n{font-weight:600}.who .e{color:var(--muted);font-size:13px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;background:var(--code);color:var(--muted);margin-right:6px}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand"><div class="logo">id</div><div><h1>Sign in</h1></div></div>
+  <div class="sub" id="sub">Continue with your account. Signing in creates it automatically.</div>
+
+  <div id="session" class="hidden"></div>
+
+  <div id="social"></div>
+
+  <div id="pwWrap">
+    <div class="sep">or</div>
+    <label for="e">Email</label><input id="e" type="email" autocomplete="username" />
+    <label for="p">Password</label><input id="p" type="password" autocomplete="current-password" />
+    <button class="primary" id="pwBtn">Sign in</button>
+  </div>
+
+  <div class="err" id="err"></div>
+  <div class="note" id="hint"></div>
+  <pre id="out" class="hidden"></pre>
+</div>
+
+<script type="module">
+const $=(id)=>document.getElementById(id);
+const ICONS={
+  google:'<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M23 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.2a5.3 5.3 0 0 1-2.3 3.5v2.9h3.7c2.2-2 3.4-5 3.4-8.6z"/><path fill="#34A853" d="M12 24c3.1 0 5.7-1 7.6-2.8l-3.7-2.9c-1 .7-2.3 1.1-3.9 1.1-3 0-5.5-2-6.4-4.7H1.8v3C3.7 21.4 7.6 24 12 24z"/><path fill="#FBBC05" d="M5.6 14.7a7.2 7.2 0 0 1 0-4.6v-3H1.8a12 12 0 0 0 0 10.6l3.8-3z"/><path fill="#EA4335" d="M12 4.8c1.7 0 3.2.6 4.4 1.7l3.3-3.3C17.7 1.2 15.1 0 12 0 7.6 0 3.7 2.6 1.8 6.1l3.8 3c.9-2.7 3.4-4.3 6.4-4.3z"/></svg>',
+  apple:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.3 12.7c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.6.9s-1.9-.9-3.1-.8c-1.6 0-3.1.9-3.9 2.3-1.7 2.9-.4 7.2 1.2 9.5.8 1.2 1.7 2.5 3 2.4 1.2 0 1.6-.8 3.1-.8s1.8.8 3.1.8c1.3 0 2.1-1.2 2.9-2.3.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.5-1-2.6-3.7zM14.2 4.7c.7-.8 1.1-2 1-3.2-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3.1 1.1.1 2.2-.6 2.9-1.4z"/></svg>',
+  github:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.9 10.9c.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0C17.6 4.7 18.6 5 18.6 5c.6 1.7.2 2.9.1 3.2.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg>',
+  microsoft:'<svg viewBox="0 0 24 24"><path fill="#F25022" d="M2 2h9.4v9.4H2z"/><path fill="#7FBA00" d="M12.6 2H22v9.4h-9.4z"/><path fill="#00A4EF" d="M2 12.6h9.4V22H2z"/><path fill="#FFB900" d="M12.6 12.6H22V22h-9.4z"/></svg>'};
+const LABEL={google:'Google',apple:'Apple',github:'GitHub',microsoft:'Microsoft'};
+
+async function api(path,opts={}){
+  const o={credentials:'include',headers:{},...opts};
+  if(opts.body&&typeof opts.body!=='string'){o.headers['Content-Type']='application/json';o.body=JSON.stringify(opts.body);}
+  const r=await fetch(path,o);const t=await r.text();
+  let d;try{d=t?JSON.parse(t):{};}catch{d={raw:t};}
+  return{status:r.status,ok:r.ok,data:d};
+}
+const params=new URLSearchParams(location.search);
+const redirectTo=params.get('redirect_to')||'/login';
+
+// Already signed in?
+const sess=(await api('/api/auth/get-session')).data;
+if(sess?.user){
+  const u=sess.user;
+  $('social').classList.add('hidden');$('pwWrap').classList.add('hidden');$('sub').classList.add('hidden');
+  const box=$('session');box.classList.remove('hidden');
+  box.innerHTML=`<div class="who">${u.image?`<img src="${u.image}" alt="">`:''}
+    <div><div class="n">${u.name||u.username||'(no name)'}</div><div class="e">${u.email||''}</div></div></div>
+    <div style="margin-bottom:14px"><span class="badge">signed in</span><span class="badge">role: ${u.role||'user'}</span></div>`;
+  const out=document.createElement('button');out.textContent='Sign out';
+  out.onclick=async()=>{await api('/api/auth/sign-out',{method:'POST'});location.href='/login';};
+  box.append(out);
+  $('out').classList.remove('hidden');
+  $('out').textContent=JSON.stringify({id:u.id,email:u.email,name:u.name,role:u.role,createdAt:u.createdAt},null,2);
+}else{
+  const h=(await api('/providers')).data||{};
+  const prov=h.providers||{};
+  const live=Object.entries(prov).filter(([,on])=>on).map(([n])=>n);
+  const wrap=$('social');
+  for(const p of ['google','apple','github','microsoft']){
+    const b=document.createElement('button');
+    b.innerHTML=`${ICONS[p]}<span>Continue with ${LABEL[p]}</span>`;
+    b.disabled=!prov[p];
+    b.onclick=async()=>{
+      b.disabled=true;b.querySelector('span').textContent='Redirecting…';
+      const {data}=await api('/api/auth/sign-in/social',{method:'POST',body:{provider:p,callbackURL:redirectTo}});
+      if(data?.url){location.href=data.url;return;}
+      $('err').textContent=data?.message||'sign-in failed';
+      b.disabled=false;b.querySelector('span').textContent=`Continue with ${LABEL[p]}`;
+    };
+    wrap.append(b);
+  }
+  $('hint').textContent = live.length ? `Live: ${live.join(' · ')}` : 'No social provider configured yet.';
+
+  $('pwBtn').onclick=async()=>{
+    $('err').textContent='';
+    const {status,data}=await api('/api/auth/sign-in/email',{method:'POST',body:{email:$('e').value.trim(),password:$('p').value}});
+    if(status===200){location.href=redirectTo;return;}
+    $('err').textContent=data?.message||`sign-in failed (${status})`;
+  };
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+import { betterAuthStudio } from "better-auth-studio/cloudflare-workers";
+import { createAuth, isAdmin } from "./auth";
+import { createStudioApiHandler } from "./studio-api";
+import { INIT_SQL } from "./db/init-sql";
+import type { Env } from "./types";
+
+const studioApi = createStudioApiHandler();
+
+/**
+ * Create the schema on first boot if it's missing, so the Deploy to Cloudflare button
+ * needs zero manual migration. Cached via KV so it runs at most once per deployment.
+ */
+let schemaReady = false;
+async function ensureSchema(env: Env): Promise<void> {
+  if (schemaReady) return;
+  if (await env.KV.get("__schema_ready")) {
+    schemaReady = true;
+    return;
+  }
+  const probe = await env.DB.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='user'",
+  ).first();
+  if (!probe) {
+    await env.DB.batch(INIT_SQL.map((s) => env.DB.prepare(s)));
+  }
+  await env.KV.put("__schema_ready", "1");
+  schemaReady = true;
+}
+
+/** Static files the Studio shell needs; always public (JS/CSS/images are not sensitive). */
+const STATIC_FILES = new Set(["/favicon.svg", "/favicon.ico", "/logo.png", "/shaders.png", "/vite.svg"]);
+const isStatic = (p: string) => p.startsWith("/assets/") || STATIC_FILES.has(p);
+
+function withCors(res: Response, origin: string | null, trusted: string[]): Response {
+  const h = new Headers(res.headers);
+  const allow = origin && trusted.includes(origin) ? origin : trusted[0] ?? "*";
+  h.set("Access-Control-Allow-Origin", allow);
+  h.set("Access-Control-Allow-Credentials", "true");
+  h.set("Vary", "Origin");
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    await ensureSchema(env);
+    const url = new URL(request.url);
+    const p = url.pathname;
+    const auth = createAuth(env, url.origin);
+    const trusted = [env.AUTH_URL, url.origin, ...(env.TRUSTED_ORIGINS ?? "").split(",")].map((o) => (o ?? "").trim()).filter(Boolean);
+
+    // ── 1. Better Auth API (PUBLIC — end users sign in here) ──────────────────
+    if (p === "/api/auth" || p.startsWith("/api/auth/")) {
+      const origin = request.headers.get("origin");
+      if (request.method === "OPTIONS") {
+        return withCors(new Response(null, { status: 204 }), origin, trusted);
+      }
+      // Studio's shell boots by GET /api/auth/session; Better Auth exposes get-session.
+      if (p === "/api/auth/session" && request.method === "GET") {
+        const session = await auth.api.getSession({ headers: request.headers });
+        return withCors(new Response(JSON.stringify(session ?? null), { headers: { "Content-Type": "application/json" } }), origin, trusted);
+      }
+      return withCors(await auth.handler(request), origin, trusted);
+    }
+
+    // ── 1b. Public provider status (the login page enables the right buttons) ─
+    if (p === "/providers") {
+      return new Response(
+        JSON.stringify({
+          providers: {
+            google: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+            apple: Boolean(env.APPLE_CLIENT_ID && env.APPLE_CLIENT_SECRET),
+            github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
+            microsoft: Boolean(env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET),
+          },
+          callbackBase: `${env.AUTH_URL}/api/auth/callback`,
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // ── 2. Hosted login page (PUBLIC) ────────────────────────────────────────
+    // The assets binding runs with html_handling:"none", so map /login → /login.html
+    // explicitly (the browser keeps its ?redirect_to=... query; login.html reads it client-side).
+    if (p === "/login" || p === "/login.html") {
+      const u = new URL(request.url);
+      u.pathname = "/login.html";
+      return env.ASSETS.fetch(new Request(u.toString(), request));
+    }
+
+    // ── 3. Static assets for the Studio shell (PUBLIC) ───────────────────────
+    if (isStatic(p)) return env.ASSETS.fetch(request);
+
+    // ── 4. Everything else = the admin Studio (UI shell + its /api/*) ─────────
+    // Gate on a Better Auth session with role=admin. The Studio adapter's own
+    // `access` config only checks IPs (it never enforces emails/roles), so we
+    // must gate here — otherwise the whole dashboard is world-readable.
+    if (!(await isAdmin(auth, env, request))) {
+      if (p.startsWith("/api/")) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+      }
+      const to = new URL("/login", url);
+      to.searchParams.set("redirect_to", p + url.search);
+      return Response.redirect(to.toString(), 302);
+    }
+
+    const studio = betterAuthStudio<Env, ExecutionContext>({
+      auth,
+      basePath: "",
+      assets: (e) => e.ASSETS,
+      apiHandler: (req, context) => studioApi(auth, env, req, context),
+      metadata: { title: "User Management", theme: "dark" },
+      lastSeenAt: { enabled: false },
+      tools: { exclude: ["run-migration", "test-db", "validate-config", "oauth-credentials"] },
+    });
+    return studio(request, env, ctx);
+  },
+} satisfies ExportedHandler<Env>;

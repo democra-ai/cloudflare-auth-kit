@@ -1,0 +1,60 @@
+{
+  "name": "cloudflare-auth-kit",
+  "version": "0.1.0",
+  "description": "One-click, fully self-hosted user management on Cloudflare — Better Auth backend + hosted login page + Better Auth Studio admin dashboard. Free and open source.",
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "better-auth",
+    "authentication",
+    "user-management",
+    "supabase-alternative",
+    "d1",
+    "self-hosted"
+  ],
+  "author": "democra-ai",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-assets.mjs",
+    "postinstall": "node scripts/build-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "db:create": "wrangler d1 create auth-kit-db && wrangler kv namespace create KV",
+    "db:generate": "drizzle-kit generate",
+    "db:apply": "wrangler d1 migrations apply auth-kit-db --remote",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "better-auth": "^1.6.23",
+    "better-auth-studio": "^1.1.3-beta.52",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260710.1",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.110.0"
+  },
+  "cloudflare": {
+    "label": "Cloudflare Auth Kit",
+    "products": ["Workers", "D1", "KV"],
+    "bindings": {
+      "DB": {
+        "description": "D1 database that stores users, accounts, and organizations."
+      },
+      "KV": {
+        "description": "KV namespace that stores login sessions."
+      },
+      "BETTER_AUTH_SECRET": {
+        "description": "32+ random characters used to sign sessions. Generate with: openssl rand -base64 33"
+      },
+      "AUTH_URL": {
+        "description": "The public URL of this Worker, e.g. https://auth.yourdomain.com (set after you add a custom domain; defaults to the workers.dev URL)."
+      },
+      "ADMIN_EMAILS": {
+        "description": "Comma-separated emails allowed into the admin dashboard (any user with role=admin also gets in)."
+      }
+    }
+  }
+}
