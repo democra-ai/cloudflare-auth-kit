@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloudflare Auth Kit — your auth, your users, your Cloudflare</title>
+<meta name="description" content="One click deploys a complete user-management stack — Better Auth backend, hosted login pages, and an admin dashboard — into your own Cloudflare account. Open source, MIT, $0 on the free tier.">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="Cloudflare Auth Kit">
+<meta property="og:description" content="Your own user-management backend — auth, login page, admin dashboard — running entirely on your Cloudflare. One click to deploy. Free and open source.">
+<meta property="og:image" content="https://authkit.democra.ai/assets/og.jpg">
+<meta property="og:url" content="https://authkit.democra.ai">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script>document.documentElement.classList.add("js")</script>
+<style>
+:root{
+  --bg:#0D0D0F; --bg2:#131316; --card:#161619; --line:#26262B; --line2:#333339;
+  --ink:#F4F2EE; --dim:#9C9CA6; --faint:#8A8A96;
+  --orange:#F6821F; --orange-soft:#FFA94D; --ok:#22C55E;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+  --disp:"Archivo","Noto Sans SC",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--disp);
+  font-size:17px;line-height:1.6;overflow-x:hidden;
+}
+::selection{background:var(--orange);color:#000}
+
+/* grid + grain atmosphere */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:72px 72px;opacity:.16;
+  mask-image:radial-gradient(ellipse 90% 70% at 50% 0%,#000 0%,transparent 78%);
+  -webkit-mask-image:radial-gradient(ellipse 90% 70% at 50% 0%,#000 0%,transparent 78%);
+}
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:100;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px;position:relative;z-index:1}
+
+/* ── mono voice ── */
+.m{font-family:var(--mono);letter-spacing:.04em}
+.chip{display:inline-flex;align-items:center;gap:.5em;font-family:var(--mono);font-size:12.5px;color:var(--dim);white-space:nowrap}
+.chip b{color:var(--orange);font-weight:500}
+.chip::before{content:"[";color:var(--orange);font-weight:600}
+.chip::after{content:"]";color:var(--orange);font-weight:600}
+
+/* ── nav ── */
+nav{position:sticky;top:0;z-index:50;background:rgba(13,13,15,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.nav-in{display:flex;align-items:center;gap:20px;height:62px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:.08em;color:var(--ink);text-decoration:none}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:var(--orange);box-shadow:0 0 14px var(--orange)}
+.brand .ver{color:var(--faint);font-weight:400;font-size:11.5px}
+.nav-links{margin-left:auto;display:flex;align-items:center;gap:18px}
+.nav-links a{color:var(--dim);text-decoration:none;font-family:var(--mono);font-size:13px;transition:color .18s}
+.nav-links a:hover{color:var(--orange)}
+.lang-btn{cursor:pointer;border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:999px;padding:5px 14px;font-family:var(--mono);font-size:12.5px;transition:.18s}
+.lang-btn:hover{border-color:var(--orange);color:var(--orange)}
+
+/* ── buttons ── */
+.btn{display:inline-flex;align-items:center;gap:10px;text-decoration:none;font-family:var(--mono);font-weight:600;font-size:14.5px;letter-spacing:.02em;padding:14px 26px;border-radius:10px;transition:transform .16s,box-shadow .16s;will-change:transform}
+.btn-orange{background:var(--orange);color:#0B0B0C;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 10px 34px -8px rgba(246,130,31,.55)}
+.btn-orange:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(0,0,0,.4),0 16px 44px -8px rgba(246,130,31,.7)}
+.btn-ghost{border:1px solid var(--line2);color:var(--ink);background:rgba(255,255,255,.02)}
+.btn-ghost:hover{transform:translateY(-2px);border-color:var(--orange);color:var(--orange)}
+
+/* ── hero ── */
+header{position:relative;padding:92px 0 40px;text-align:center}
+.hero-glow{position:absolute;left:50%;top:-260px;transform:translateX(-50%);width:1100px;height:640px;pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(246,130,31,.17) 0%,rgba(246,130,31,.05) 42%,transparent 70%)}
+.hero-chips{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:34px}
+h1{
+  font-family:var(--disp);font-variation-settings:"wdth" 118;font-weight:850;
+  font-size:clamp(42px,7.2vw,88px);line-height:1.02;letter-spacing:-.022em;text-wrap:balance;
+}
+h1 .hl{color:var(--orange);position:relative;white-space:nowrap}
+h1 .hl::after{content:"";position:absolute;left:2%;bottom:.04em;width:96%;height:.1em;background:var(--orange);opacity:.28;border-radius:3px}
+.hero-sub{max-width:680px;margin:26px auto 0;color:var(--dim);font-size:clamp(16px,2vw,19px);line-height:1.65;text-wrap:balance}
+.hero-cta{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:38px 0 12px}
+.hero-note{font-family:var(--mono);font-size:12px;color:var(--faint)}
+
+/* ── video player ── */
+.player{margin:64px auto 0;max-width:960px;border-radius:16px;border:1px solid var(--line2);
+  background:var(--card);box-shadow:0 40px 120px -30px rgba(0,0,0,.85),0 0 90px -30px rgba(246,130,31,.28);overflow:hidden}
+.player-bar{display:flex;align-items:center;gap:8px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--bg2)}
+.pdot{width:11px;height:11px;border-radius:50%}
+.player-url{margin:0 auto;font-family:var(--mono);font-size:12px;color:var(--faint);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:3px 46px}
+video{display:block;width:100%;aspect-ratio:16/9;background:#000}
+
+/* ── marquee ── */
+.marquee{margin:88px 0 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;background:var(--bg2)}
+.marquee-track{display:flex;gap:0;width:max-content;animation:mq 36s linear infinite}
+.marquee:hover .marquee-track{animation-play-state:paused}
+.mq-item{display:flex;align-items:center;gap:22px;padding:15px 22px 15px 0;font-family:var(--mono);font-size:13px;letter-spacing:.14em;color:var(--dim);white-space:nowrap}
+.mq-item::after{content:"·";color:var(--orange);margin-left:22px}
+@keyframes mq{to{transform:translateX(-50%)}}
+
+/* ── sections ── */
+section{padding:110px 0 0}
+.sec-head{display:flex;align-items:baseline;gap:18px;margin-bottom:14px}
+.sec-num{font-family:var(--mono);font-size:13px;color:var(--orange)}
+h2{font-family:var(--disp);font-variation-settings:"wdth" 115;font-weight:800;font-size:clamp(30px,4.4vw,48px);letter-spacing:-.015em;line-height:1.08;text-wrap:balance}
+.sec-sub{color:var(--dim);max-width:640px;margin-top:12px;font-size:16.5px}
+
+/* surfaces */
+.surfaces{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
+.surface{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:transform .25s,border-color .25s}
+.surface:hover{transform:translateY(-5px);border-color:var(--orange)}
+.surface-shot{aspect-ratio:1480/940;overflow:hidden;border-bottom:1px solid var(--line);background:#0A0A0B}
+.surface-shot img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.surface-body{padding:22px 22px 26px}
+.surface-path{font-family:var(--mono);font-size:12.5px;color:var(--orange);margin-bottom:10px}
+.surface h3{font-size:19px;font-weight:700;margin-bottom:8px}
+.surface p{color:var(--dim);font-size:14.5px;line-height:1.6}
+
+/* architecture */
+.arch{margin-top:48px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:34px;overflow-x:auto}
+.arch pre{font-family:var(--mono);font-size:13px;line-height:1.5;color:var(--dim)}
+.arch pre .o{color:var(--orange)} .arch pre .w{color:var(--ink)} .arch pre .g{color:var(--ok)}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:48px}
+.stat{background:var(--card);padding:34px 26px}
+.stat .v{font-family:var(--disp);font-variation-settings:"wdth" 120;font-weight:850;font-size:clamp(34px,4.4vw,52px);color:var(--orange);letter-spacing:-.02em;line-height:1}
+.stat .l{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--dim);margin-top:12px;text-transform:uppercase}
+.stat .d{color:var(--faint);font-size:13.5px;margin-top:6px}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px;position:relative}
+.step-num{font-family:var(--mono);font-size:13px;color:var(--orange);margin-bottom:14px}
+.step h3{font-size:18px;margin-bottom:10px}
+.step p{color:var(--dim);font-size:14.5px}
+.step code,.codebox{font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 8px;color:var(--orange-soft)}
+.codebox{display:block;margin-top:14px;padding:12px 14px;overflow-x:auto;white-space:pre}
+.codebox .cm{color:var(--faint)}
+
+/* split feature rows */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;margin-top:64px}
+.split.rev .shot-frame{order:2}
+.split h3{font-family:var(--disp);font-variation-settings:"wdth" 112;font-weight:800;font-size:clamp(24px,3vw,32px);letter-spacing:-.01em;line-height:1.15;margin-bottom:14px}
+.split p{color:var(--dim);font-size:15.5px}
+.split ul{list-style:none;margin-top:18px;display:grid;gap:10px}
+.split li{display:flex;gap:12px;align-items:baseline;color:var(--dim);font-size:14.5px}
+.split li::before{content:"▸";color:var(--orange);font-family:var(--mono)}
+.shot-frame{border-radius:14px;border:1px solid var(--line2);overflow:hidden;background:var(--card);box-shadow:0 30px 80px -24px rgba(0,0,0,.8)}
+.shot-frame img{display:block;width:100%}
+.shot-tabs{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--bg2)}
+.shot-tab{font-family:var(--mono);font-size:11.5px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:3px 10px;cursor:pointer;background:transparent;transition:.15s}
+.shot-tab.on{color:#000;background:var(--orange);border-color:var(--orange);font-weight:600}
+
+/* footer cta */
+.final{margin-top:120px;border-top:1px solid var(--line);background:
+  radial-gradient(ellipse 60% 90% at 50% 110%,rgba(246,130,31,.16),transparent 65%),var(--bg2);
+  text-align:center;padding:110px 0 96px}
+.final h2{font-size:clamp(34px,5.4vw,60px)}
+footer{border-top:1px solid var(--line);padding:34px 0 44px}
+.foot-in{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:12.5px;color:var(--faint)}
+.foot-in a{color:var(--dim);text-decoration:none}
+.foot-in a:hover{color:var(--orange)}
+
+/* reveal (scroll-triggered; JS-gated so content stays visible without JS) */
+html.js .rv{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+html.js .rv.in{opacity:1;transform:none}
+.rv.d1{transition-delay:.08s}.rv.d2{transition-delay:.16s}.rv.d3{transition-delay:.24s}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .marquee-track{animation:none}
+  html.js .rv{transition:none;transform:none;opacity:1}
+  .btn,.surface,.btn-ghost,.btn-orange{transition:none}
+}
+
+@media (max-width:900px){
+  .surfaces,.steps{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .split{grid-template-columns:1fr;gap:28px}
+  .split.rev .shot-frame{order:0}
+  header{padding-top:64px}
+  .nav-links a.hide-sm{display:none}
+  .brand .ver{display:none}
+}
+@media (max-width:520px){
+  .brand{font-size:12px;letter-spacing:.05em}
+  .nav-links{gap:10px}
+  .nav-links a.gh-link{display:none}
+  h1{font-size:clamp(34px,10.5vw,42px)}
+  h1 .hl{white-space:normal}
+  h1 .hl::after{display:none}
+}
+html[lang="zh"] body{font-family:"Noto Sans SC",var(--disp)}
+html[lang="zh"] h1,html[lang="zh"] h2,html[lang="zh"] .split h3{font-variation-settings:normal;font-weight:900}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#"><span class="dot"></span>CLOUDFLARE AUTH KIT <span class="ver">v0.1</span></a>
+    <div class="nav-links">
+      <a class="hide-sm" href="#surfaces" data-i18n="nav_product">Product</a>
+      <a class="hide-sm" href="#deploy" data-i18n="nav_deploy">Deploy</a>
+      <a class="gh-link" href="https://github.com/democra-ai/cloudflare-auth-kit" target="_blank" rel="noopener">[ GITHUB ]</a>
+      <button class="lang-btn" id="langBtn">中文</button>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="hero-glow"></div>
+  <div class="wrap">
+    <div class="hero-chips rv">
+      <span class="chip" data-i18n="chip1">OPEN SOURCE · MIT</span>
+      <span class="chip"><b>●</b>&nbsp;<span data-i18n="chip2">RUNS ON YOUR CLOUDFLARE</span></span>
+      <span class="chip" data-i18n="chip3">$0 ON THE FREE TIER</span>
+    </div>
+    <h1 class="rv d1" data-i18n-html="h1">Your auth. Your users.<br><span class="hl">Your Cloudflare.</span></h1>
+    <p class="hero-sub rv d2" data-i18n="hero_sub">One click deploys a complete user-management stack — Better Auth backend, hosted login pages, and an admin dashboard — into your own Cloudflare account. No servers. No auth vendor. No one else's database.</p>
+    <div class="hero-cta rv d3">
+      <a class="btn btn-orange" href="https://deploy.workers.cloudflare.com/?url=https://github.com/democra-ai/cloudflare-auth-kit" target="_blank" rel="noopener">⚡ <span data-i18n="cta_deploy">Deploy to Cloudflare</span></a>
+      <a class="btn btn-ghost" href="https://github.com/democra-ai/cloudflare-auth-kit" target="_blank" rel="noopener">★ <span data-i18n="cta_github">Star on GitHub</span></a>
+    </div>
+    <div class="hero-note rv d3" data-i18n="hero_note">// one secret to paste, zero migrations to run</div>
+
+    <div class="player rv d3">
+      <div class="player-bar">
+        <span class="pdot" style="background:#FF5F57"></span><span class="pdot" style="background:#FEBC2E"></span><span class="pdot" style="background:#28C840"></span>
+        <span class="player-url">authkit.democra.ai / launch</span>
+      </div>
+      <video id="launchVideo" controls playsinline preload="metadata" poster="/assets/poster-en.jpg">
+        <source src="/assets/launch-en.mp4" type="video/mp4">
+      </video>
+    </div>
+  </div>
+</header>
+
+<div class="marquee" aria-hidden="true">
+  <div class="marquee-track" id="mq"></div>
+</div>
+
+<main class="wrap">
+
+  <section id="surfaces">
+    <div class="sec-head rv"><span class="sec-num">01 /</span><h2 data-i18n="s1_h">Three surfaces. One Worker.</h2></div>
+    <p class="sec-sub rv" data-i18n="s1_sub">Everything ships in a single Cloudflare Worker: the API your app calls, the login pages your users see, and the dashboard you manage them from.</p>
+    <div class="surfaces">
+      <div class="surface rv">
+        <div class="surface-shot"><img src="/assets/shots/signin-en.webp" alt="Hosted login page" loading="lazy" data-shot="signin"></div>
+        <div class="surface-body">
+          <div class="surface-path">/auth/*</div>
+          <h3 data-i18n="s1a_h">Hosted login pages</h3>
+          <p data-i18n="s1a_p">Sign-in, sign-up, passkeys, email codes and social buttons — themed in Cloudflare orange, light &amp; dark, English &amp; 中文. Zero frontend work.</p>
+        </div>
+      </div>
+      <div class="surface rv d1">
+        <div class="surface-shot"><img src="/assets/shots/studio-users-en.webp" alt="Better Auth Studio admin dashboard" loading="lazy" data-shot="studio-users"></div>
+        <div class="surface-body">
+          <div class="surface-path">/ <span style="color:var(--faint)" data-i18n="s1b_path">(admin only)</span></div>
+          <h3 data-i18n="s1b_h">Admin dashboard</h3>
+          <p data-i18n="s1b_p">Better Auth Studio built in: browse, create, ban, role and delete users and organizations — live event stream included, gated to admins.</p>
+        </div>
+      </div>
+      <div class="surface rv d2">
+        <div class="surface-shot" style="display:flex;align-items:center;background:var(--bg)">
+          <pre class="codebox" style="border:none;background:transparent;margin:0 auto;font-size:12px;line-height:1.7"><span class="cm">// your app, anywhere</span>
+const s = await fetch(
+  "https://auth.you.com" +
+  "/api/auth/get-session",
+  { credentials: "include" }
+).then(r =&gt; r.json())
+
+s.user.email
+<span class="cm">// → "ada@example.com"</span></pre>
+        </div>
+        <div class="surface-body">
+          <div class="surface-path">/api/auth/*</div>
+          <h3 data-i18n="s1c_h">Better Auth API</h3>
+          <p data-i18n="s1c_p">The full Better Auth surface, public where it should be. Point any SDK at it, share sessions across subdomains, add trusted origins per app.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch rv" role="img" aria-label="End users and your app hit one Cloudflare Worker: /auth/* serves the login pages, /api/auth/* is the Better Auth API, and / is the admin dashboard — backed by D1 for users and organizations and KV for sessions."><pre aria-hidden="true">
+                     ┌────────────────────────────────────────────┐
+ <span class="w">End users</span> ────────► │  <span class="o">Cloudflare Worker</span>  (this repo)            │
+ (Google / passkey)  │                                            │
+                     │   <span class="o">/auth/*</span>      → login pages              │
+ <span class="w">Your app</span> ─────────► │   <span class="o">/api/auth/*</span>  → Better Auth API          │
+ (SDK / redirect)    │   <span class="o">/</span>            → admin dashboard          │
+                     └───────────┬────────────────┬───────────────┘
+                                 │                │
+                          ┌──────▼─────┐   ┌──────▼─────┐
+                          │  <span class="g">D1 (SQL)</span>  │   │  <span class="g">KV</span>        │
+                          │  users/orgs │   │  sessions  │
+                          └────────────┘   └────────────┘</pre></div>
+  </section>
+
+  <section>
+    <div class="sec-head rv"><span class="sec-num">02 /</span><h2 data-i18n="s2_h">The parts you'd have built anyway.</h2></div>
+    <div class="stats">
+      <div class="stat rv"><div class="v">7</div><div class="l" data-i18n="st1_l">sign-in methods</div><div class="d" data-i18n="st1_d">password · email OTP · passkeys · Google · Apple · GitHub · Microsoft</div></div>
+      <div class="stat rv d1"><div class="v">$0</div><div class="l" data-i18n="st2_l">on the free tier</div><div class="d" data-i18n="st2_d">Workers + D1 + KV, comfortably within Cloudflare's free plan</div></div>
+      <div class="stat rv d2"><div class="v">1</div><div class="l" data-i18n="st3_l">worker for everything</div><div class="d" data-i18n="st3_d">API, login pages and admin UI in a single deploy</div></div>
+      <div class="stat rv d3"><div class="v">100%</div><div class="l" data-i18n="st4_l">yours</div><div class="d" data-i18n="st4_d">your account, your database, your code — MIT licensed</div></div>
+    </div>
+  </section>
+
+  <section id="deploy">
+    <div class="sec-head rv"><span class="sec-num">03 /</span><h2 data-i18n="s3_h">Deployed before your coffee drips.</h2></div>
+    <div class="steps">
+      <div class="step rv">
+        <div class="step-num">STEP 01</div>
+        <h3 data-i18n="d1_h">Click deploy</h3>
+        <p data-i18n="d1_p">Cloudflare clones the repo into your GitHub and auto-provisions a D1 database and a KV namespace. Every push redeploys.</p>
+      </div>
+      <div class="step rv d1">
+        <div class="step-num">STEP 02</div>
+        <h3 data-i18n="d2_h">Paste one secret</h3>
+        <p data-i18n="d2_p">32+ random characters to sign your sessions. That's the whole configuration.</p>
+        <span class="codebox">$ openssl rand -base64 33</span>
+      </div>
+      <div class="step rv d2">
+        <div class="step-num">STEP 03</div>
+        <h3 data-i18n="d3_h">You're live</h3>
+        <p data-i18n="d3_p">The schema creates itself on first request — no migrations. Social providers switch on automatically when you add their keys.</p>
+        <span class="codebox"><span class="cm">→</span> https://auth-kit.you.workers.dev <span style="color:var(--ok)">● live</span></span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head rv"><span class="sec-num">04 /</span><h2 data-i18n="s4_h">Small on ceremony, big on surface.</h2></div>
+
+    <div class="split">
+      <div class="shot-frame rv">
+        <div class="shot-tabs">
+          <button class="shot-tab on" data-swap="signin" data-to="/assets/shots/signin-en.webp" data-to-zh="/assets/shots/signin-zh.webp">LIGHT</button>
+          <button class="shot-tab" data-swap="signin" data-to="/assets/shots/signin-en-dark.webp" data-to-zh="/assets/shots/signin-zh-dark.webp">DARK</button>
+        </div>
+        <img id="shot-signin" src="/assets/shots/signin-en.webp" alt="Login page light and dark" loading="lazy">
+      </div>
+      <div class="rv d1">
+        <h3 data-i18n="f1_h">A login page you don't have to design</h3>
+        <p data-i18n="f1_p">Built from better-auth-ui's shadcn components and themed like it belongs to Cloudflare. Light and dark. English and 中文. Passkeys and email codes appear the moment you enable them — the page always mirrors your config.</p>
+        <ul>
+          <li data-i18n="f1_l1">Passkeys (WebAuthn) with cross-subdomain support</li>
+          <li data-i18n="f1_l2">Email OTP via Cloudflare Email Routing or Resend</li>
+          <li data-i18n="f1_l3">Google, Apple, GitHub, Microsoft — auto-enabled by config</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="split rev">
+      <div class="shot-frame rv">
+        <img id="shot-dash" src="/assets/shots/studio-dashboard-en.webp" alt="Studio dashboard" loading="lazy" data-shot="studio-dashboard">
+      </div>
+      <div class="rv d1">
+        <h3 data-i18n="f2_h">An admin you'd actually open</h3>
+        <p data-i18n="f2_p">Live session events, growth charts, user and organization management, CSV export, ban / role / delete — Better Auth Studio ships inside the same Worker, locked to admins only.</p>
+        <ul>
+          <li data-i18n="f2_l1">Role-gated: admins in, everyone else bounced to login</li>
+          <li data-i18n="f2_l2">Organizations &amp; members with owner roles</li>
+          <li data-i18n="f2_l3">Works on day zero — no separate deploy</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="shot-frame rv">
+        <img id="shot-master" src="/assets/shots/master-en.webp" alt="Multi-app control panel" loading="lazy" data-shot="master">
+      </div>
+      <div class="rv d1">
+        <h3 data-i18n="f3_h">One deployment, many apps</h3>
+        <p data-i18n="f3_p">Mount extra apps under their own path — each with its own D1 database, KV namespace and signing secret. Users of one app can never leak into another: isolation is declared in config, enforced by bindings.</p>
+        <ul>
+          <li data-i18n="f3_l1">Per-app databases — hard isolation, not row filters</li>
+          <li data-i18n="f3_l2">Per-app login pages &amp; OAuth callback routing</li>
+          <li data-i18n="f3_l3">Cross-subdomain SSO when you want it, host-only when you don't</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="final rv">
+    <span class="chip" data-i18n="final_chip">RENT-FREE · VENDOR-FREE · SERVER-FREE</span>
+    <h2 style="margin-top:22px" data-i18n-html="final_h">Stop renting your users.<br><span style="color:var(--orange)">Own them.</span></h2>
+    <div class="hero-cta" style="margin-top:34px">
+      <a class="btn btn-orange" href="https://deploy.workers.cloudflare.com/?url=https://github.com/democra-ai/cloudflare-auth-kit" target="_blank" rel="noopener">⚡ <span data-i18n="cta_deploy2">Deploy to Cloudflare</span></a>
+      <a class="btn btn-ghost" href="https://github.com/democra-ai/cloudflare-auth-kit" target="_blank" rel="noopener" data-i18n="cta_read">Read the source</a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <span>© 2026 <a href="https://democra.ai" target="_blank" rel="noopener">Democra.AI</a> · MIT</span>
+    <span data-i18n-html="foot_credit">built on <a href="https://www.better-auth.com" target="_blank" rel="noopener">Better Auth</a> · <a href="https://github.com/better-auth-ui/better-auth-ui" target="_blank" rel="noopener">better-auth-ui</a> · <a href="https://github.com/Kinfe123/better-auth-studio" target="_blank" rel="noopener">Better Auth Studio</a></span>
+    <a href="https://github.com/democra-ai/cloudflare-auth-kit" target="_blank" rel="noopener">[ GITHUB ]</a>
+  </div>
+</footer>
+
+<script>
+/* ── i18n (same localStorage key as the product itself) ── */
+const I18N = {
+  zh: {
+    nav_product:"产品", nav_deploy:"部署",
+    chip1:"开源 · MIT", chip2:"跑在你自己的 CLOUDFLARE 上", chip3:"免费额度内 $0",
+    h1:'你的登录，你的用户，<br><span class="hl">你自己的 Cloudflare。</span>',
+    hero_sub:"一键把整套用户系统部署进你自己的 Cloudflare 账户 —— Better Auth 后端、托管登录页、管理后台，全都在一个 Worker 里。不用服务器，不租认证厂商，用户数据不在别人手里。",
+    cta_deploy:"一键部署到 Cloudflare", cta_github:"GitHub 点个 Star",
+    hero_note:"// 只需粘贴一个密钥，零迁移步骤",
+    s1_h:"三个界面，一个 Worker。",
+    s1_sub:"一个 Cloudflare Worker 装下全部：你的应用调用的 API、用户看到的登录页、你管理用户的后台。",
+    s1a_h:"托管登录页", s1a_p:"注册、登录、通行密钥、邮箱验证码、社交登录 —— Cloudflare 橙主题，明暗双模式，中英双语。前端零工作量。",
+    s1b_h:"管理后台", s1b_p:"内置 Better Auth Studio：浏览、创建、封禁、改角色、删除用户和组织，自带实时事件流，只有管理员进得来。", s1b_path:"（仅管理员）",
+    s1c_h:"Better Auth API", s1c_p:"完整的 Better Auth 接口，该公开的公开。任何 SDK 都能直连，支持跨子域共享会话、按应用配置信任来源。",
+    s2_h:"这些你本来都得自己写。",
+    st1_l:"种登录方式", st1_d:"密码 · 邮箱验证码 · 通行密钥 · Google · Apple · GitHub · Microsoft",
+    st2_l:"免费额度内", st2_d:"Workers + D1 + KV，中小应用稳稳跑在 Cloudflare 免费套餐里",
+    st3_l:"个 Worker 装下一切", st3_d:"API、登录页、管理后台，一次部署全都有",
+    st4_l:"属于你", st4_d:"你的账户、你的数据库、你的代码 —— MIT 协议",
+    s3_h:"咖啡还没滴完，已经部署好了。",
+    d1_h:"点一下部署", d1_p:"Cloudflare 把仓库克隆到你的 GitHub，自动创建 D1 数据库和 KV 命名空间。以后每次 push 自动重新部署。",
+    d2_h:"粘贴一个密钥", d2_p:"32 位以上随机字符，用来签名会话。配置就这一项。",
+    d3_h:"上线", d3_p:"数据库结构首次请求时自动创建，没有迁移步骤。社交登录提供商填上密钥即自动开启。",
+    s4_h:"仪式感极少，能力面极大。",
+    f1_h:"一个不用你设计的登录页",
+    f1_p:"基于 better-auth-ui 的 shadcn 组件，配色像 Cloudflare 亲生的。明暗双模式、中英双语。开启通行密钥或邮箱验证码后，页面立刻同步显示 —— 登录页永远和你的配置一致。",
+    f1_l1:"通行密钥（WebAuthn），支持跨子域", f1_l2:"邮箱验证码，走 Cloudflare Email Routing 或 Resend", f1_l3:"Google、Apple、GitHub、Microsoft —— 配了就有",
+    f2_h:"一个你真的会打开的后台",
+    f2_p:"实时会话事件、增长图表、用户与组织管理、CSV 导出、封禁/角色/删除 —— Better Auth Studio 就在同一个 Worker 里，只对管理员开放。",
+    f2_l1:"角色门控：管理员进入，其他人弹回登录页", f2_l2:"组织与成员，带 owner 角色", f2_l3:"第 0 天就能用 —— 不用单独部署",
+    f3_h:"一次部署，多个应用",
+    f3_p:"把更多应用挂到各自的路径下 —— 每个应用独立的 D1、KV 和签名密钥。一个应用的用户永远不会漏到另一个应用：隔离写在配置里，由绑定强制执行。",
+    f3_l1:"每应用独立数据库 —— 硬隔离，不是行过滤", f3_l2:"每应用独立登录页与 OAuth 回调路由", f3_l3:"想要跨子域 SSO 就开，不想要就是纯独立",
+    final_chip:"不租厂商 · 不管服务器 · 不交月费",
+    final_h:'别再租用你的用户。<br><span style="color:var(--orange)">拥有他们。</span>',
+    cta_deploy2:"一键部署到 Cloudflare", cta_read:"读源码",
+    foot_credit:'基于 <a href="https://www.better-auth.com" target="_blank" rel="noopener">Better Auth</a> · <a href="https://github.com/better-auth-ui/better-auth-ui" target="_blank" rel="noopener">better-auth-ui</a> · <a href="https://github.com/Kinfe123/better-auth-studio" target="_blank" rel="noopener">Better Auth Studio</a> 构建',
+    mq:["邮箱密码","邮箱验证码 OTP","通行密钥 PASSKEYS","GOOGLE","APPLE","GITHUB","MICROSOFT","D1 数据库","KV 会话","组织",'跨子域 SSO',"明暗双主题","中英双语","MIT 开源"]
+  },
+  en: {
+    mq:["EMAIL + PASSWORD","EMAIL OTP","PASSKEYS","GOOGLE","APPLE","GITHUB","MICROSOFT","D1 DATABASE","KV SESSIONS","ORGANIZATIONS","CROSS-SUBDOMAIN SSO","LIGHT / DARK","EN / 中文","MIT LICENSED"]
+  }
+};
+const EN_HTML = {}; // snapshot of English strings for toggling back
+document.querySelectorAll("[data-i18n],[data-i18n-html]").forEach(el=>{
+  const k = el.dataset.i18n || el.dataset.i18nHtml;
+  EN_HTML[k] = el.innerHTML;
+});
+const LANG_KEY = "bas-lang";
+// current language = applied page state (never trust storage for reads — it can be blocked)
+const curLang = () => document.documentElement.lang==="zh" ? "zh" : "en";
+function apply(lang){
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n],[data-i18n-html]").forEach(el=>{
+    const k = el.dataset.i18n || el.dataset.i18nHtml;
+    const v = lang==="zh" ? I18N.zh[k] : EN_HTML[k];
+    if(v!==undefined) el.innerHTML = v;
+  });
+  document.getElementById("langBtn").textContent = lang==="zh" ? "EN" : "中文";
+  // swap screenshots to the matching language
+  document.querySelectorAll("img[data-shot]").forEach(img=>{
+    img.src = img.src.replace(/-(en|zh)(-dark)?\.webp/, `-${lang}$2.webp`);
+  });
+  // shot tabs know both languages
+  document.querySelectorAll(".shot-tab").forEach(b=>{
+    if(b.classList.contains("on")) document.getElementById("shot-"+b.dataset.swap).src = lang==="zh" ? b.dataset.toZh : b.dataset.to;
+  });
+  // launch video per language
+  const v = document.getElementById("launchVideo");
+  const src = v.querySelector("source");
+  const want = lang==="zh" ? "/assets/launch-zh.mp4" : "/assets/launch-en.mp4";
+  if(!src.src.endsWith(want)){ const t=v.currentTime; src.src=want; v.poster=lang==="zh"?"/assets/poster-zh.jpg":"/assets/poster-en.jpg"; v.load(); if(t>0.5){v.currentTime=t;} }
+  // marquee
+  const items = (lang==="zh"?I18N.zh.mq:I18N.en.mq);
+  const half = items.map(t=>`<span class="mq-item">${t}</span>`).join("");
+  document.getElementById("mq").innerHTML = half + half;
+}
+document.getElementById("langBtn").addEventListener("click",()=>{
+  const next = curLang()==="zh" ? "en" : "zh";
+  try { localStorage.setItem(LANG_KEY,next); } catch {}
+  apply(next);
+});
+// default: localStorage > browser language (storage read must not disable the fallback)
+let initial = null;
+try { initial = localStorage.getItem(LANG_KEY); } catch {}
+if (initial!=="zh" && initial!=="en") {
+  initial = (navigator.language||"").toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+apply(initial);
+
+/* ── shot tabs (light/dark) ── */
+document.querySelectorAll(".shot-tab").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(`.shot-tab[data-swap="${btn.dataset.swap}"]`).forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    const lang=curLang();
+    document.getElementById("shot-"+btn.dataset.swap).src = lang==="zh" ? btn.dataset.toZh : btn.dataset.to;
+  });
+});
+
+/* ── scroll reveal ── */
+const io = new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target);} }),{threshold:.12});
+document.querySelectorAll(".rv").forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

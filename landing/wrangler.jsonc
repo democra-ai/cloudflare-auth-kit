@@ -1,0 +1,18 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // Static landing site for Cloudflare Auth Kit (assets-only Worker, no code).
+  // Deploy with:  npx wrangler deploy --config landing/wrangler.jsonc
+  // The custom domain below is ours — point it at your own zone (or delete
+  // "routes" to serve from *.workers.dev) if you fork this.
+  "name": "authkit-landing",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash",
+    // "none" → missing assets 404 loudly instead of silently serving index.html
+    "not_found_handling": "none"
+  },
+  "routes": [
+    { "pattern": "authkit.democra.ai", "custom_domain": true }
+  ]
+}

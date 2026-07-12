@@ -16,6 +16,10 @@ Everything is one Worker. No servers, no external database, no third-party auth 
   </a>
 </p>
 
+<p align="center">
+  🌐 <a href="https://authkit.democra.ai"><b>authkit.democra.ai</b></a> — landing page, screenshots & the launch film (EN / 中文)
+</p>
+
 ---
 
 ## What you get

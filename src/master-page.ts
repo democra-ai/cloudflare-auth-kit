@@ -35,8 +35,8 @@ export async function renderMasterPage(env: Env, authUrl: string): Promise<Respo
         </div>
         ${
           a.error
-            ? `<div class="err">配置错误：${esc(a.error)}</div>`
-            : `<div class="meta"><span class="n">${a.users}</span> 个用户 · 独立数据库</div>
+            ? `<div class="err" data-zh="配置错误：${esc(a.error)}" data-en="Misconfigured: ${esc(a.error)}">配置错误：${esc(a.error)}</div>`
+            : `<div class="meta"><span class="n">${a.users}</span> <span data-zh="个用户 · 独立数据库" data-en="user${a.users === 1 ? "" : "s"} · isolated database">个用户 · 独立数据库</span></div>
                <div class="endpoint">${esc(authUrl)}/${esc(a.slug)}/api/auth</div>`
         }
       </a>`,
@@ -77,15 +77,44 @@ export async function renderMasterPage(env: Env, authUrl: string): Promise<Respo
   .note{color:var(--muted);font-size:12.5px;margin-top:32px;line-height:1.75}
   .note code{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:1px 5px;
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+  .lang{position:fixed;top:18px;right:18px;border:1px solid var(--line);background:var(--panel);
+    color:var(--fg);border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer}
+  .lang:hover{border-color:var(--brand)}
 </style></head>
 <body><div class="wrap">
-  <div class="brand"><div class="bdot"></div><h1>应用</h1></div>
-  <p class="sub">每个应用有各自独立的数据库，用户互不可见。点击进入该应用的用户管理。</p>
+  <button class="lang" id="lang" title="Switch language">EN</button>
+  <div class="brand"><div class="bdot"></div><h1 data-zh="应用" data-en="Applications">应用</h1></div>
+  <p class="sub" data-zh="每个应用有各自独立的数据库，用户互不可见。点击进入该应用的用户管理。"
+     data-en="Every application has its own isolated database — users never cross over. Click one to manage its users.">每个应用有各自独立的数据库，用户互不可见。点击进入该应用的用户管理。</p>
   <div class="grid">${cards}</div>
-  <p class="note">
+  <p class="note"
+     data-zh="新增一个应用需要：创建它的 D1 与 KV、设置它自己的签名密钥、把它加进 <code>APPS</code>，然后重新部署 —— 绑定必须静态声明，这是硬隔离的代价。"
+     data-en="Adding an app takes: create its D1 and KV, set its own signing secret, add it to <code>APPS</code>, then redeploy — bindings must be declared statically; that's the price of hard isolation.">
     新增一个应用需要：创建它的 D1 与 KV、设置它自己的签名密钥、把它加进 <code>APPS</code>，然后重新部署 —— 绑定必须静态声明，这是硬隔离的代价。
   </p>
-</div></body></html>`;
+</div>
+<script>
+(function(){
+  // Same language key as the login page and the Studio i18n overlay (default zh).
+  var KEY="bas-lang";
+  function lang(){ try { return localStorage.getItem(KEY)==="en" ? "en" : "zh"; } catch(e){ return "zh"; } }
+  function apply(l){
+    document.documentElement.lang = l==="en" ? "en" : "zh-CN";
+    document.title = l==="en" ? "Applications · User management" : "应用 · 用户管理后台";
+    document.querySelectorAll("[data-zh]").forEach(function(el){
+      el.innerHTML = l==="en" ? el.getAttribute("data-en") : el.getAttribute("data-zh");
+    });
+    document.getElementById("lang").textContent = l==="en" ? "中文" : "EN";
+  }
+  document.getElementById("lang").addEventListener("click",function(){
+    var next = (document.documentElement.lang==="en") ? "zh" : "en";
+    try { localStorage.setItem(KEY,next); } catch(e){}
+    apply(next);
+  });
+  apply(lang());
+})();
+</script>
+</body></html>`;
 
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
